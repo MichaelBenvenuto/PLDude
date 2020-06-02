@@ -1,4 +1,3 @@
-
 class BuildConfig:
     def __init__(self, config_stream : dict):
         self.file_type = config_stream['filetype']

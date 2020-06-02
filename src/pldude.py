@@ -1,9 +1,10 @@
-import yaml
-
-from BuildConfig import BuildConfig
-from build_xst import xst
 from os import listdir
 from os.path import splitext
+
+import yaml
+from BuildConfig import BuildConfig
+
+from build_xst import xst
 
 try:
     config_file = open(r"./pldprj.yml", "r")

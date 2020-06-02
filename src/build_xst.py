@@ -1,5 +1,7 @@
 import os
+
 from BuildConfig import BuildConfig
+
 
 #TODO:
 # Write XST generation script

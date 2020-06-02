@@ -3,3 +3,5 @@ __pycache__/*
 gen/*
 
 /*.yml
+
+src/__pycache__
