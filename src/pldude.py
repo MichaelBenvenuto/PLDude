@@ -5,7 +5,7 @@ import yaml
 from BuildConfig import BuildConfig
 
 from build_xst import xst
-# from build_xst import XstBuild
+from build_xst import XstBuild
 
 try:
     config_file = open(r"./pldprj.yml", "r")
@@ -28,24 +28,30 @@ if config_stream is None:
     print("Wrote default data to pldprj.yml...")
     exit(0)
 
+device = config_stream['device'].lower()
+
 # Need a way of making a static function in BuildConfig to detect if a device is Xilinx, Altera, Lattice, etc.
 # Possibly a hash function?
 # Not using a NN, i know this is python, but not everything needs AI...
-bcon = BuildConfig(config_stream)
+if device[0] == 'x':
+    bcon = XstBuild(config_stream)
+else:
+    print("Unknwon device!")
+    exit(-1)
 
 files = []
 
 for i in listdir("./"):
     ext = splitext(i)[1]
-    if (ext == ".vhd" and bcon.file_type.lower() == "vhdl") or (ext == ".v" and bcon.file_type.lower() == "verilog"):
+    if (ext == ".vhd" and bcon.GetFileType().lower() == "vhdl") or (ext == ".v" and bcon.GetFileType().lower() == "verilog"):
         files.append(i)
 
 xst(files, bcon)
 
-config_stream['filetype'] = bcon.file_type
-config_stream['device'] = bcon.device
-config_stream['top'] = bcon.top
-config_stream['optimize'] = bcon.opt
+config_stream['filetype'] = bcon.GetFileType()
+config_stream['device'] = bcon.GetDevice()
+config_stream['top'] = bcon.GetTopMod()
+config_stream['optimize'] = bcon.GetOptMode()
 
 config_file = open(r"./pldprj.yml", "w+")
 yaml.dump(config_stream, config_file, sort_keys=False)

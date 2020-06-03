@@ -1,5 +1,4 @@
 class BuildConfig:
-
     def __init__(self, config_stream : dict):
         self.config_stream = config_stream
 
