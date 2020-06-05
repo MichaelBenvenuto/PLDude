@@ -15,6 +15,20 @@ PLDude only requires the command line tools of certain vendors to run; only one 
 be of any use. It is recommended that users install vendor specific IDEs to ensure they have proper software, again,
 this is not needed.
 
+### Building PLDude
+`pyinstaller` is required to package the python script files into an executable. Ensure that it is installed by
+running:
+
+```
+pip install pyinstaller
+```
+
+After pyinstaller is installed, simply run `build.py` to generate the executable:
+
+```
+python3 ./build.py
+```
+
 ### Setting proper environment variables
 Ensure that the PATH environment variable has the location of any command line tools added. Note that altera quartus
 requires individual device family libraries to be installed before using the tool.
@@ -28,6 +42,13 @@ requires individual device family libraries to be installed before using the too
 `<ALTERA INSTALL LOCATION>/quartus/bin` (32bit)
 
 `<ALTERA INSTALL LOCATION>/quartus/bin64` (64bit)
+
+## Running
+PLDude has no command line arguments yet and only requires it to be either added to a `PATH` directory or the root
+project directory.
+```
+pldude.exe
+```
 
 ## Configuration files
 
