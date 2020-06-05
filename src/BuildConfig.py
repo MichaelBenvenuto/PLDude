@@ -1,6 +1,7 @@
 class BuildConfig:
-    def __init__(self, config_stream : dict):
+    def __init__(self, config_stream : dict, pin_stream : dict):
         self.config_stream = config_stream
+        self.pin_stream = pin_stream
 
     def GetFileType(self):
         ft = self.config_stream['filetype']
@@ -22,6 +23,9 @@ class BuildConfig:
             print("Cannot have null device!")
             exit(5)
         return dev
+
+    def GetPins(self):
+        print("Cannot use abstract build config...")
 
     def GetOptMode(self):
         print("Cannot use abstract build config...")

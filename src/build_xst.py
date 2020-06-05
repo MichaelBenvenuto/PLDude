@@ -24,6 +24,19 @@ class XstBuild(BuildConfig):
         elif olvl == 1:
             return 2
 
+    def GetPins(self):
+        return self.pin_stream['xst']
+
+def process_handler(proc : subprocess):
+    while True:
+        return_code = proc.poll()
+        output = proc.stdout.readline().decode("utf-8")
+        if output is not '':
+            print(output, end='')
+        if return_code is not None:
+            break
+    pass
+
 def xst(files, bcon : BuildConfig):
     if not os.path.exists("./gen/xilinx"):
         os.makedirs("./gen/xilinx")
@@ -36,8 +49,9 @@ def xst(files, bcon : BuildConfig):
     xst_file.write("-top " + bcon.GetTopMod() + "\n")
     xst_file.write("-ifmt " + bcon.GetFileType() + "\n")
     xst_file.write("-opt_mode " + bcon.GetOptMode() + "\n")
+    xst_file.write("-opt_level " + str(bcon.GetOptLevel()) + "\n")
     xst_file.write("-ofn ./gen/xilinx/project.ngc\n")
-    xst_file.write("-ofmt NGC")
+    xst_file.write("-ofmt ngc")
 
     print("Writing project files to main file...")
 
@@ -55,11 +69,30 @@ def xst(files, bcon : BuildConfig):
     print("Executing XST for synthesis...")
     xst_proc = subprocess.Popen(
         ['xst', '-ifn ./gen/xilinx/xst.scr', '-ofn ./gen/xilinx/project_result.srp', '-intstyle xflow'],
-    stdout=subprocess.PIPE)
+        stdout=subprocess.PIPE)
 
-    while True:
-        return_code = xst_proc.poll()
-        if return_code is not None:
-            break
+    process_handler(xst_proc)
 
-    print("XST has finished, check file ./gen/xilinx/project_result.srp for more info.")
+    print("XST has finished...")
+    print("Generating UCF file from pldpin.yml...")
+
+    ucf_file = open("./gen/xilinx/project.ucf", "w+")
+
+    pins = bcon.GetPins()
+    for i in pins:
+        ucf_file.write("NET \"" + str(i) + "\" LOC=\"" + str(pins[i]) + "\";\n")
+    ucf_file.close()
+    print("UCF file generated...")
+    print("Executing NGDBuild...")
+    ngd_proc = subprocess.Popen(
+        ['ngdbuild', '-p', bcon.GetDevice(), '-dd ./gen/xilinx', '-uc ./gen/xilinx/project.ucf', './gen/xilinx/project.ngc', './gen/xilinx/project.ngd'],
+        stdout=subprocess.PIPE)
+
+    process_handler(ngd_proc)
+    print("Executing MAP...")
+    map_proc = subprocess.Popen(
+        ['map', '-detail', '-pr b', '-p', bcon.GetDevice(), './gen/xilinx/project.ngd'],
+        stdout=subprocess.PIPE
+    )
+
+    process_handler(map_proc)
