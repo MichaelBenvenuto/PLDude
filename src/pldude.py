@@ -7,8 +7,16 @@ from BuildConfig import BuildConfig
 from build_xst import xst
 from build_xst import XstBuild
 
+from build_altera import altera
+from build_altera import AlteraBuild
+
+from sys import exit
+
 config_file = 0
 pin_file = 0
+
+print("PLDude v0.1")
+print("-----------")
 
 try:
     config_file = open(r"./pldprj.yml", "r")
@@ -40,6 +48,8 @@ device = config_stream['device'].lower()
 # Not using a NN, i know this is python, but not everything needs AI...
 if device[0] == 'x':
     bcon = XstBuild(config_stream, pin_stream)
+elif device[0] == 'e':
+    bcon = AlteraBuild(config_stream, pin_stream)
 else:
     print("Unknown device!")
     exit(-3)
@@ -54,4 +64,4 @@ elif mode.lower() == "verilog":
 else:
     files = [f for f in glob.glob(src_dir + "**/*[.v,.vhdl]")]
 
-xst(files, bcon)
+altera(files, bcon)

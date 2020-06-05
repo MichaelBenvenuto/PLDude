@@ -2,6 +2,9 @@ import os
 import subprocess
 
 from BuildConfig import BuildConfig
+from BuildConfig import process_handler
+
+from sys import exit
 
 class XstBuild(BuildConfig):
     def GetOptMode(self):
@@ -29,18 +32,6 @@ class XstBuild(BuildConfig):
             print("No pin configuration found for XST!")
             exit(-5)
         return self.pin_stream['xst']
-
-def process_handler(proc : subprocess):
-    while True:
-        return_code = proc.poll()
-        output = proc.stdout.readline().decode("utf-8")
-        if output is not '':
-            print(output, end='')
-        if return_code is not None:
-            if return_code != 0:
-                exit(return_code)
-            break
-    pass
 
 def xst(files, bcon : BuildConfig):
     if not os.path.exists("./gen/xilinx"):

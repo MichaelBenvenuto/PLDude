@@ -1,3 +1,7 @@
+import subprocess
+
+from sys import exit
+
 class BuildConfig:
     def __init__(self, config_stream : dict, pin_stream : dict):
         self.config_stream = config_stream
@@ -40,3 +44,15 @@ class BuildConfig:
 
     def GetOptLevel(self):
         print("Cannot use abstract build config...")
+
+def process_handler(proc : subprocess):
+    while True:
+        return_code = proc.poll()
+        output = proc.stdout.readline().decode("utf-8")
+        if output is not '':
+            print(output, end='')
+        if return_code is not None:
+            if return_code != 0:
+                exit(return_code)
+            break
+    pass
