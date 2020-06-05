@@ -19,3 +19,31 @@ Optimize |Determines how the synthesizer should optimize the top-level module (*
 Opt-level|The level of optimization that should be performed (*0*/*1*)
 Top      |The top module (**THE ENTITY/COMPONENT - NOT THE FILE**)
 src      |The directory where source files are located
+
+## Pin files
+
+PLDude also uses YAML files to map pins, located in the file ```pldpin.yml```. The basic format of this YAML file looks like the following:
+```yml
+xst:
+    imm16[0]: T7
+    imm16[1]: A9
+
+altera:
+    clk[0]: R8
+    reset: A2
+```
+
+Multiple pin configurations can be defined in a singular file, the format is as follows:
+```yml
+<BRAND>:
+    <I/O NAME>: <PHYSICAL PIN>
+```
+
+Key         |Meaning
+------------|---------
+Brand       |The synthesizer tool to use (xst, altera, etc.)
+I/O name    |The name of the respective port in the top level file
+Physical Pin|The pin mapping on the actual device
+
+## Bitfile generation
+Bitfiles are automatically placed inside ```./gen/[brand]/bitfile```
