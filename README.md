@@ -5,8 +5,8 @@ PLDude aims to decrease the overhead of programming PLDs (Devices like **FPGAs**
 vendor synthesis tools and a text editor of your choosing. By abstracting away various parts of vendor-specific
 tools under a common buildfile, only one instance of PLDude needs to be on your system for multiple projects.
 
-PLDude currently only supports Xilinx tools, but, since this is written in python, many other vendors like Lattice
-and Altera are going to be supported in the future.
+PLDude currently only supports Xilinx and Altera tools, but, since this is written in python, many other vendors
+like Lattice are planned to be supported in the future.
 
 ## Setup
 
