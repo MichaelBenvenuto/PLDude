@@ -3,11 +3,6 @@ import subprocess
 
 from BuildConfig import BuildConfig
 
-
-#TODO:
-# Write XST generation script
-# Isolate toolchain directories (XST, Quartus, etc.)
-
 class XstBuild(BuildConfig):
     def GetOptMode(self):
         opt = self.config_stream['optimize'].lower()
@@ -34,6 +29,8 @@ def process_handler(proc : subprocess):
         if output is not '':
             print(output, end='')
         if return_code is not None:
+            if return_code != 0:
+                exit(return_code)
             break
     pass
 
@@ -44,19 +41,19 @@ def xst(files, bcon : BuildConfig):
     xst_file = open("./gen/xilinx/xst.scr", "w+")
 
     print("Writing XST script...")
-    xst_file.write("run\n-ifn ./gen/xilinx/project.prj\n")
+    xst_file.write("run\n-ifn ./project.prj\n")
     xst_file.write("-p " + bcon.GetDevice() + "\n")
     xst_file.write("-top " + bcon.GetTopMod() + "\n")
     xst_file.write("-ifmt " + bcon.GetFileType() + "\n")
     xst_file.write("-opt_mode " + bcon.GetOptMode() + "\n")
     xst_file.write("-opt_level " + str(bcon.GetOptLevel()) + "\n")
-    xst_file.write("-ofn ./gen/xilinx/project.ngc\n")
+    xst_file.write("-ofn ./project.ngc\n")
     xst_file.write("-ofmt ngc")
 
     print("Writing project files to main file...")
 
     for i in files:
-        prj_str = "work " + i + '\n'
+        prj_str = "work ../../" + i + '\n'
         if bcon.GetFileType().lower() is "Mixed":
             if os.extsep(i)[1].lower() is ".vhd":
                 prj_str = "VHDL " + prj_str
@@ -68,7 +65,8 @@ def xst(files, bcon : BuildConfig):
 
     print("Executing XST for synthesis...")
     xst_proc = subprocess.Popen(
-        ['xst', '-ifn ./gen/xilinx/xst.scr', '-ofn ./gen/xilinx/project_result.srp', '-intstyle xflow'],
+        ['xst', '-ifn ./xst.scr', '-ofn ./project_result.srp', '-intstyle silent'],
+        cwd=r'./gen/xilinx',
         stdout=subprocess.PIPE)
 
     process_handler(xst_proc)
@@ -83,16 +81,40 @@ def xst(files, bcon : BuildConfig):
         ucf_file.write("NET \"" + str(i) + "\" LOC=\"" + str(pins[i]) + "\";\n")
     ucf_file.close()
     print("UCF file generated...")
+
     print("Executing NGDBuild...")
     ngd_proc = subprocess.Popen(
-        ['ngdbuild', '-p', bcon.GetDevice(), '-dd ./gen/xilinx', '-uc ./gen/xilinx/project.ucf', './gen/xilinx/project.ngc', './gen/xilinx/project.ngd'],
-        stdout=subprocess.PIPE)
-
-    process_handler(ngd_proc)
-    print("Executing MAP...")
-    map_proc = subprocess.Popen(
-        ['map', '-detail', '-pr b', '-p', bcon.GetDevice(), './gen/xilinx/project.ngd'],
+        ['ngdbuild', '-p', bcon.GetDevice(), '-uc ./project.ucf', './project.ngc', './project.ngd', '-intstyle silent'],
+        cwd=r'./gen/xilinx',
         stdout=subprocess.PIPE
     )
+    process_handler(ngd_proc)
 
+    print("Executing MAP...")
+    map_proc = subprocess.Popen(
+        ['map', '-w', '-intstyle silent', '-detail', '-pr b', '-p', bcon.GetDevice(), './project.ngd'],
+        cwd=r'./gen/xilinx',
+        stdout=subprocess.PIPE
+    )
     process_handler(map_proc)
+
+    print("Executing PAR...")
+    par_proc = subprocess.Popen(
+        ['par', '-w', '-p', '-intstyle silent', './project.ncd', './project_par.ncd', './project.pcf'],
+        cwd=r'./gen/xilinx',
+        stdout=subprocess.PIPE
+    )
+    process_handler(par_proc)
+
+    print("Generating bitfile...")
+
+    if not os.path.exists("./gen/xilinx/bitfile"):
+        os.makedirs("./gen/xilinx/bitfile")
+
+    bit_proc = subprocess.Popen(
+        ['bitgen', '-w', '-g CRC:Enable', '-intstyle silent', './project_par.ncd', './bitfile/project.bit', './project.pcf'],
+        cwd=r'./gen/xilinx',
+        stdout=subprocess.PIPE
+    )
+    process_handler(bit_proc)
+

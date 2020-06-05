@@ -1,4 +1,4 @@
-from os import listdir
+import glob
 from os.path import splitext
 
 import yaml
@@ -44,20 +44,14 @@ else:
     print("Unknown device!")
     exit(-3)
 
-files = []
+src_dir = str(config_stream['src'])
+mode = str(config_stream['filetype'])
 
-for i in listdir("./"):
-    ext = splitext(i)[1]
-    if (ext == ".vhd" and bcon.GetFileType().lower() == "vhdl") or (ext == ".v" and bcon.GetFileType().lower() == "verilog"):
-        files.append(i)
+if mode.lower() == "vhdl":
+    files = [f for f in glob.glob(src_dir + "**/*.vhd", recursive=True)]
+elif mode.lower() == "verilog":
+    files = [f for f in glob.glob(src_dir + "**/*.v", recursive=True)]
+else:
+    files = [f for f in glob.glob(src_dir + "**/*[.v,.vhdl]")]
 
 xst(files, bcon)
-
-config_stream['filetype'] = bcon.GetFileType()
-config_stream['device'] = bcon.GetDevice()
-config_stream['top'] = bcon.GetTopMod()
-config_stream['optimize'] = bcon.GetOptMode()
-
-config_file = open(r"./pldprj.yml", "w+")
-yaml.dump(config_stream, config_file, sort_keys=False)
-config_file.close()
