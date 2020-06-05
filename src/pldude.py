@@ -12,6 +12,8 @@ from build_altera import AlteraBuild
 
 from sys import exit
 
+system = 0
+
 config_file = 0
 pin_file = 0
 
@@ -48,8 +50,10 @@ device = config_stream['device'].lower()
 # Not using a NN, i know this is python, but not everything needs AI...
 if device[0] == 'x':
     bcon = XstBuild(config_stream, pin_stream)
-elif device[0] == 'e':
+    system = 0
+elif device[0] == 'e' or device[0] == '5' or str(device).index('10') == 0:
     bcon = AlteraBuild(config_stream, pin_stream)
+    system = 1
 else:
     print("Unknown device!")
     exit(-3)
@@ -64,4 +68,7 @@ elif mode.lower() == "verilog":
 else:
     files = [f for f in glob.glob(src_dir + "**/*[.v,.vhdl]")]
 
-altera(files, bcon)
+if system == 0:
+    xst(files, bcon)
+elif system == 1:
+    altera(files, bcon)
