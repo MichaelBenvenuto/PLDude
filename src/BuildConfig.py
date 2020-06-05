@@ -4,6 +4,8 @@ class BuildConfig:
         self.pin_stream = pin_stream
 
     def GetFileType(self):
+        if not 'filetype' in self.config_stream:
+            return "mixed"
         ft = self.config_stream['filetype']
         if ft is None:
             print("Cannot use null filetype!")
@@ -11,6 +13,9 @@ class BuildConfig:
         return ft
 
     def GetTopMod(self):
+        if not 'top' in self.config_stream:
+            print("No top module specified in pldprj.yml!")
+            exit(4)
         top = self.config_stream['top']
         if top is None:
             print("Cannot use null top module!")
@@ -18,6 +23,9 @@ class BuildConfig:
         return top
 
     def GetDevice(self):
+        if not 'device' in self.config_stream:
+            print("No device specified in pldprj.yml!")
+            exit(5)
         dev = self.config_stream['device']
         if dev is None:
             print("Cannot have null device!")

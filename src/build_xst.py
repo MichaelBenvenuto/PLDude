@@ -5,6 +5,8 @@ from BuildConfig import BuildConfig
 
 class XstBuild(BuildConfig):
     def GetOptMode(self):
+        if not 'optimize' in self.config_stream:
+            return "SPEED"
         opt = self.config_stream['optimize'].lower()
         if opt is not any(["speed", "area"]):
             return opt.upper()
@@ -13,6 +15,9 @@ class XstBuild(BuildConfig):
             exit(2)
 
     def GetOptLevel(self):
+        if not 'opt-level' in self.config_stream:
+            return 1
+
         olvl = self.config_stream['opt-level']
         if olvl == 0:
             return 1
@@ -20,6 +25,9 @@ class XstBuild(BuildConfig):
             return 2
 
     def GetPins(self):
+        if not 'xst' in self.pin_stream:
+            print("No pin configuration found for XST!")
+            exit(-5)
         return self.pin_stream['xst']
 
 def process_handler(proc : subprocess):
