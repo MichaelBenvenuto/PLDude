@@ -46,8 +46,9 @@ def GetFamily(device : str):
             return "MAX 10"
     else:
         print("Unknown device " + device + "!")
+        exit(-6)
 
-def altera(files, bcon : BuildConfig):
+def altera(files, bcon : BuildConfig, program : bool):
     if not os.path.exists("./gen/altera"):
         os.makedirs("./gen/altera")
     qsf_file = open("./gen/altera/project.qsf", "w+")
@@ -94,4 +95,21 @@ def altera(files, bcon : BuildConfig):
     if not os.path.exists("./gen/altera/bitfile"):
         os.makedirs("./gen/altera/bitfile")
 
+    if os.path.exists("./gen/altera/bitfile/project.sof"):
+        os.remove("./gen/altera/bitfile/project.sof")
+
     os.rename("./gen/altera/project.sof", "./gen/altera/bitfile/project.sof")
+
+    if program:
+        altera_program()
+
+def altera_program():
+    qpgm_proc = subprocess.Popen(
+        ['quartus_pgm', '-m', 'JTAG', '-o', 'p;./gen/altera/bitfile/project.sof']
+    )
+
+    qpgm_proc.wait()
+    return_code = qpgm_proc.poll()
+    if return_code is not None and return_code != 0:
+        print("Device was not found by JTAG!")
+        exit(-7)

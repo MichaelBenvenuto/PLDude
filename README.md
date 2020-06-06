@@ -44,10 +44,17 @@ requires individual device family libraries to be installed before using the too
 `<ALTERA INSTALL LOCATION>/quartus/bin64` (64bit)
 
 ## Running
-PLDude has no command line arguments yet and only requires it to be either added to a `PATH` directory or the root
-project directory.
+PLDude has several command line arguments to choose from. These enable programming and may disable the compilation and only program the
+device defined in `pldprj.yml` with a pre-generated bitfile
+
+Option | Functionality
+-------|--------------
+default|Only compile HDL source files
+-p     |Both compile and program the device
+-po    |Only program the device
+
 ```
-pldude.exe
+pldude <options>
 ```
 
 ## Configuration files

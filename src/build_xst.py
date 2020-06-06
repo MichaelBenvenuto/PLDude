@@ -33,7 +33,7 @@ class XstBuild(BuildConfig):
             exit(-5)
         return self.pin_stream['xst']
 
-def xst(files, bcon : BuildConfig):
+def xst(files, bcon : BuildConfig, program : bool):
     if not os.path.exists("./gen/xilinx"):
         os.makedirs("./gen/xilinx")
     prj_file = open("./gen/xilinx/project.prj", "w+")
@@ -116,4 +116,28 @@ def xst(files, bcon : BuildConfig):
         stdout=subprocess.PIPE
     )
     process_handler(bit_proc)
+
+    if program:
+        xst_program()
+
+def xst_program():
+
+    cmd_file = open("./gen/xilinx/project.cmd", "w+")
+    cmd_file.write("setMode -bscan\n")
+    cmd_file.write("setCable -p auto\n")
+    cmd_file.write("addDevice -p 1 -file ./bitfile/project.bit\n")
+    cmd_file.write("program -p 1\n")
+    cmd_file.write("quit\n")
+    cmd_file.close()
+
+    impact_proc = subprocess.Popen(
+        ['impact', '-batch', './project.cmd'],
+        cwd=r'./gen/xilinx'
+    )
+
+    impact_proc.wait()
+    return_code = impact_proc.poll()
+    if return_code is not None and return_code != 0:
+        print("Device was not found by JTAG!")
+        exit(-7)
 

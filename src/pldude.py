@@ -1,13 +1,15 @@
 import glob
-from os.path import splitext
+from sys import argv
 
 import yaml
 from BuildConfig import BuildConfig
 
 from build_xst import xst
+from build_xst import xst_program
 from build_xst import XstBuild
 
 from build_altera import altera
+from build_altera import altera_program
 from build_altera import AlteraBuild
 
 from sys import exit
@@ -48,6 +50,7 @@ device = config_stream['device'].lower()
 # Need a way of making a static function in BuildConfig to detect if a device is Xilinx, Altera, Lattice, etc.
 # Possibly a hash function?
 # Not using a NN, i know this is python, but not everything needs AI...
+bcon = BuildConfig(config_stream, pin_stream)
 if device[0] == 'x':
     bcon = XstBuild(config_stream, pin_stream)
     system = 0
@@ -61,14 +64,28 @@ else:
 src_dir = str(config_stream['src'])
 mode = str(config_stream['filetype'])
 
+files = []
+
 if mode.lower() == "vhdl":
     files = [f for f in glob.glob(src_dir + "**/*.vhd", recursive=True)]
 elif mode.lower() == "verilog":
     files = [f for f in glob.glob(src_dir + "**/*.v", recursive=True)]
-else:
+elif mode.lower() == "mixed":
     files = [f for f in glob.glob(src_dir + "**/*[.v,.vhdl]")]
+else:
+    print("Unknown mode: " + mode)
+    exit(-4)
+
+program = '-p' in argv
+program_only = '-po' in argv
 
 if system == 0:
-    xst(files, bcon)
+    if not program_only:
+        xst(files, bcon, program)
+    else:
+        xst_program
 elif system == 1:
-    altera(files, bcon)
+    if not program_only:
+        altera(files, bcon, program)
+    else:
+        altera_program()
