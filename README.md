@@ -52,6 +52,7 @@ Option | Functionality
 default|Only compile HDL source files
 -p     |Both compile and program the device
 -po    |Only program the device
+-v     |Enable output to console
 
 ```
 pldude <options>
@@ -72,6 +73,7 @@ Optimize* |Determines how the synthesizer should optimize the top-level module (
 Opt-level*|The level of optimization that should be performed (*0*/*1*)
 Top       |The top module (**THE ENTITY/COMPONENT - NOT THE FILE**)
 src*      |The directory where source files are located
+devsrc*   |The directory within src where device specific source files are located, these are package independent so for an FPGA such as the *XC6SLX9-2FTG256*, only *XC6SLX9* is required
 
 **optional*
 

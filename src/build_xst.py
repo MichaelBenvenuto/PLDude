@@ -33,94 +33,126 @@ class XstBuild(BuildConfig):
             exit(-5)
         return self.pin_stream['xst']
 
-def xst(files, bcon : BuildConfig, program : bool):
+    def GetDeviceNoPackage(self):
+        dev = str(self.GetDevice())
+        return dev.split('-')[0]
+
+    def Run(self, files, program, only_program, verbose):
+        xst(files, self, program, only_program, verbose)
+
+
+def xst(files, bcon : BuildConfig, program : bool, only_program : bool, verbose : bool):
     if not os.path.exists("./gen/xilinx"):
         os.makedirs("./gen/xilinx")
-    prj_file = open("./gen/xilinx/project.prj", "w+")
-    xst_file = open("./gen/xilinx/xst.scr", "w+")
 
-    print("Writing XST script...")
-    xst_file.write("run\n-ifn ./project.prj\n")
-    xst_file.write("-p " + bcon.GetDevice() + "\n")
-    xst_file.write("-top " + bcon.GetTopMod() + "\n")
-    xst_file.write("-ifmt " + bcon.GetFileType() + "\n")
-    xst_file.write("-opt_mode " + bcon.GetOptMode() + "\n")
-    xst_file.write("-opt_level " + str(bcon.GetOptLevel()) + "\n")
-    xst_file.write("-ofn ./project.ngc\n")
-    xst_file.write("-ofmt ngc")
+    if not (program and only_program):
+        if not os.path.exists("./gen/xilinx/logs"):
+            os.makedirs("./gen/xilinx/logs")
 
-    print("Writing project files to main file...")
+        prj_file = open("./gen/xilinx/project.prj", "w+")
+        xst_file = open("./gen/xilinx/xst.scr", "w+")
 
-    for i in files:
-        prj_str = "work ../../" + i + '\n'
-        if bcon.GetFileType().lower() is "Mixed":
-            if os.extsep(i)[1].lower() is ".vhd":
-                prj_str = "VHDL " + prj_str
-            elif os.extsep(i)[1].lower() is ".v":
-                prj_str = "verilog " + prj_str
-        prj_file.write(prj_str)
-    prj_file.close()
-    xst_file.close()
+        print("Writing XST script...")
+        xst_file.write("run\n-ifn ./project.prj\n")
+        xst_file.write("-p " + bcon.GetDevice() + "\n")
+        xst_file.write("-top " + bcon.GetTopMod() + "\n")
+        xst_file.write("-ifmt " + bcon.GetFileType() + "\n")
+        xst_file.write("-opt_mode " + bcon.GetOptMode() + "\n")
+        xst_file.write("-opt_level " + str(bcon.GetOptLevel()) + "\n")
+        xst_file.write("-ofn ./project.ngc\n")
+        xst_file.write("-ofmt ngc")
 
-    print("Executing XST for synthesis...")
-    xst_proc = subprocess.Popen(
-        ['xst', '-ifn ./xst.scr', '-ofn ./project_result.srp', '-intstyle silent'],
-        cwd=r'./gen/xilinx',
-        stdout=subprocess.PIPE)
+        print("Writing project files to main file...")
 
-    process_handler(xst_proc)
+        for i in files:
+            prj_str = "work ../../" + i + '\n'
+            if bcon.GetFileType().lower() is "Mixed":
+                if os.extsep(i)[1].lower() is ".vhd":
+                    prj_str = "VHDL " + prj_str
+                elif os.extsep(i)[1].lower() is ".v":
+                    prj_str = "verilog " + prj_str
+            prj_file.write(prj_str)
+        prj_file.close()
+        xst_file.close()
 
-    print("XST has finished...")
-    print("Generating UCF file from pldpin.yml...")
+        xst_proc_out = subprocess.PIPE
+        if not verbose:
+            xst_proc_out = open("./gen/xilinx/logs/xst.log", "w+")
 
-    ucf_file = open("./gen/xilinx/project.ucf", "w+")
+        print("Executing XST for synthesis...")
+        xst_proc = subprocess.Popen(
+            ['xst', '-ifn ./xst.scr', '-ofn ./project_result.srp', '-intstyle ise'],
+            cwd=r'./gen/xilinx',
+            stdout=xst_proc_out
+        )
+        process_handler(xst_proc)
+        ngd_proc_out = subprocess.PIPE
+        if not verbose:
+            ngd_proc_out = open("./gen/xilinx/logs/ngd.log", "w+")
+            xst_proc_out.close()
+        print("XST has finished...")
 
-    pins = bcon.GetPins()
-    for i in pins:
-        ucf_file.write("NET \"" + str(i) + "\" LOC=\"" + str(pins[i]) + "\";\n")
-    ucf_file.close()
-    print("UCF file generated...")
+        print("Generating UCF file from pldpin.yml...")
+        ucf_file = open("./gen/xilinx/project.ucf", "w+")
+        pins = bcon.GetPins()
+        for i in pins:
+            ucf_file.write("NET \"" + str(i) + "\" LOC=\"" + str(pins[i]) + "\";\n")
+        ucf_file.close()
+        print("UCF file generated...")
 
-    print("Executing NGDBuild...")
-    ngd_proc = subprocess.Popen(
-        ['ngdbuild', '-p', bcon.GetDevice(), '-uc ./project.ucf', './project.ngc', './project.ngd', '-intstyle silent'],
-        cwd=r'./gen/xilinx',
-        stdout=subprocess.PIPE
-    )
-    process_handler(ngd_proc)
+        print("Executing NGDBuild...")
+        ngd_proc = subprocess.Popen(
+            ['ngdbuild', '-p', bcon.GetDevice(), '-uc ./project.ucf', './project.ngc', './project.ngd', '-intstyle ise'],
+            cwd=r'./gen/xilinx',
+            stdout=ngd_proc_out
+        )
+        process_handler(ngd_proc)
+        map_proc_out = subprocess.PIPE
+        if not verbose:
+            map_proc_out = open("./gen/xilinx/logs/map.log", "w+")
+            ngd_proc_out.close()
 
-    print("Executing MAP...")
-    map_proc = subprocess.Popen(
-        ['map', '-w', '-intstyle silent', '-detail', '-pr b', '-p', bcon.GetDevice(), './project.ngd'],
-        cwd=r'./gen/xilinx',
-        stdout=subprocess.PIPE
-    )
-    process_handler(map_proc)
+        print("Executing MAP...")
+        map_proc = subprocess.Popen(
+            ['map', '-w', '-intstyle silent', '-detail', '-pr b', '-p', bcon.GetDevice(), './project.ngd'],
+            cwd=r'./gen/xilinx',
+            stdout=map_proc_out
+        )
+        process_handler(map_proc)
+        par_proc_out = subprocess.PIPE
+        if not verbose:
+            map_proc_out.close()
+            par_proc_out = open("./gen/xilinx/logs/par.log", "w+")
 
-    print("Executing PAR...")
-    par_proc = subprocess.Popen(
-        ['par', '-w', '-p', '-intstyle silent', './project.ncd', './project_par.ncd', './project.pcf'],
-        cwd=r'./gen/xilinx',
-        stdout=subprocess.PIPE
-    )
-    process_handler(par_proc)
+        print("Executing PAR...")
+        par_proc = subprocess.Popen(
+            ['par', '-w', '-p', '-intstyle ise', './project.ncd', './project_par.ncd', './project.pcf'],
+            cwd=r'./gen/xilinx',
+            stdout=par_proc_out
+        )
+        process_handler(par_proc)
+        bit_proc_out = subprocess.PIPE
+        if not verbose:
+            bit_proc_out = open("./gen/xilinx/logs/bit.log", "w+")
 
-    print("Generating bitfile...")
+        print("Generating bitfile...")
+        if not os.path.exists("./gen/xilinx/bitfile"):
+            os.makedirs("./gen/xilinx/bitfile")
 
-    if not os.path.exists("./gen/xilinx/bitfile"):
-        os.makedirs("./gen/xilinx/bitfile")
+        bit_proc = subprocess.Popen(
+            ['bitgen', '-w', '-g CRC:Enable', '-intstyle ise', './project_par.ncd', './bitfile/project.bit', './project.pcf'],
+            cwd=r'./gen/xilinx',
+            stdout=bit_proc_out
+        )
+        process_handler(bit_proc)
 
-    bit_proc = subprocess.Popen(
-        ['bitgen', '-w', '-g CRC:Enable', '-intstyle silent', './project_par.ncd', './bitfile/project.bit', './project.pcf'],
-        cwd=r'./gen/xilinx',
-        stdout=subprocess.PIPE
-    )
-    process_handler(bit_proc)
+        if not verbose:
+            bit_proc_out.close()
 
     if program:
-        xst_program()
+        xst_program(verbose)
 
-def xst_program():
+def xst_program(verbose : bool):
 
     cmd_file = open("./gen/xilinx/project.cmd", "w+")
     cmd_file.write("setMode -bscan\n")
@@ -130,9 +162,14 @@ def xst_program():
     cmd_file.write("quit\n")
     cmd_file.close()
 
+    impact_proc_out = subprocess.PIPE
+    if not verbose:
+        impact_proc_out = open("./gen/xilinx/logs/impact.log", "w+")
     impact_proc = subprocess.Popen(
         ['impact', '-batch', './project.cmd'],
-        cwd=r'./gen/xilinx'
+        cwd=r'./gen/xilinx',
+        stdout=impact_proc_out,
+        stderr=impact_proc_out
     )
 
     impact_proc.wait()
@@ -140,4 +177,7 @@ def xst_program():
     if return_code is not None and return_code != 0:
         print("Device was not found by JTAG!")
         exit(-7)
+
+    if not verbose:
+        impact_proc_out.close()
 

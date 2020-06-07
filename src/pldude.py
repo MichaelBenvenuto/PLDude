@@ -1,4 +1,5 @@
 import glob
+import os
 from sys import argv
 
 import yaml
@@ -19,7 +20,7 @@ system = 0
 config_file = 0
 pin_file = 0
 
-print("PLDude v0.1")
+print("PLDude v0.2")
 print("-----------")
 
 try:
@@ -45,6 +46,10 @@ if config_stream is None:
     print("empty pldpin.yml!")
     exit(-2)
 
+if not 'device' in config_stream:
+    print("No device specified!")
+    exit(-2)
+
 device = config_stream['device'].lower()
 
 # Need a way of making a static function in BuildConfig to detect if a device is Xilinx, Altera, Lattice, etc.
@@ -61,30 +66,38 @@ else:
     print("Unknown device!")
     exit(-3)
 
-src_dir = str(config_stream['src'])
-mode = str(config_stream['filetype'])
+src_dir = bcon.GetSrcDir()
+mode = bcon.GetFileType()
 
 files = []
 
+glob_ext = "/*"
+
 if mode.lower() == "vhdl":
-    files = [f for f in glob.glob(src_dir + "**/*.vhd", recursive=True)]
+    files = [f for f in glob.glob(src_dir + "/**/*.vhd", recursive=True)
+             if not str(os.path.dirname(f)).replace("\\", "/").startswith(src_dir + "/" + bcon.GetDeviceDir())]
+    glob_ext = "/*.vhd"
 elif mode.lower() == "verilog":
-    files = [f for f in glob.glob(src_dir + "**/*.v", recursive=True)]
+    files = [f for f in glob.glob(src_dir + "/**/*.v", recursive=True)
+             if not str(os.path.dirname(f)).replace("\\", "/").startswith(src_dir + "/" + bcon.GetDeviceDir())]
+    glob_ext = "/*.v"
 elif mode.lower() == "mixed":
-    files = [f for f in glob.glob(src_dir + "**/*[.v,.vhdl]")]
+    files = [f for f in glob.glob(src_dir + "/**/*[.v,.vhd]", recursive=True)
+             if not str(os.path.dirname(f)).replace("\\", "/").startswith(src_dir + "/" + bcon.GetDeviceDir())]
+    glob_ext = "/*[.v, .vhd]"
 else:
     print("Unknown mode: " + mode)
     exit(-4)
 
-program = '-p' in argv
-program_only = '-po' in argv
+files.extend(glob.glob(src_dir + "/" + bcon.GetDeviceDir() + "/" + bcon.GetDeviceNoPackage() + glob_ext))
 
-if system == 0:
-    if not program_only:
-        xst(files, bcon, program)
-    else:
-        xst_program
-elif system == 1:
+program = '-p' in argv or '-po' in argv
+program_only = '-po' in argv
+verbose = '-v' in argv
+
+bcon.Run(files, program, program_only, verbose)
+
+if system == 1:
     if not program_only:
         altera(files, bcon, program)
     else:

@@ -1,4 +1,5 @@
 import subprocess
+import glob
 
 from sys import exit
 
@@ -12,8 +13,8 @@ class BuildConfig:
             return "mixed"
         ft = self.config_stream['filetype']
         if ft is None:
-            print("Cannot use null filetype!")
-            exit(3)
+            print("Warning! Null filetype, defaulting to \"mixed\"")
+            return "mixed"
         return ft
 
     def GetTopMod(self):
@@ -36,6 +37,27 @@ class BuildConfig:
             exit(5)
         return dev
 
+    def GetDeviceNoPackage(self):
+        print("Cannot use abstract function...")
+
+    def GetSrcDir(self):
+        if not 'src' in self.config_stream:
+            return "./"
+        src = self.config_stream['src']
+        if src is None:
+            print("Warning! Null src directory, defaulting to \"./\"")
+            return "./"
+        return src
+
+    def GetDeviceDir(self):
+        if not 'devsrc' in self.config_stream:
+            return ""
+        devsrc = self.config_stream['devsrc']
+        if devsrc is None:
+            print("Warning! Null devsrc directory, device-specific files will not be used.")
+            return ""
+        return devsrc
+
     def GetPins(self):
         print("Cannot use abstract build config...")
 
@@ -45,14 +67,13 @@ class BuildConfig:
     def GetOptLevel(self):
         print("Cannot use abstract build config...")
 
+    def Run(self, files, program, only_program, verbose):
+        print("Cannot run abstract build config...")
+
 def process_handler(proc : subprocess):
     while True:
         return_code = proc.poll()
-        output = proc.stdout.readline().decode("utf-8")
-        if output is not '':
-            print(output, end='')
         if return_code is not None:
             if return_code != 0:
                 exit(return_code)
             break
-    pass
