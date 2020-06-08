@@ -5,12 +5,7 @@ from sys import argv
 import yaml
 from BuildConfig import BuildConfig
 
-from build_xst import xst
-from build_xst import xst_program
 from build_xst import XstBuild
-
-from build_altera import altera
-from build_altera import altera_program
 from build_altera import AlteraBuild
 
 from sys import exit
@@ -58,10 +53,8 @@ device = config_stream['device'].lower()
 bcon = BuildConfig(config_stream, pin_stream)
 if device[0] == 'x':
     bcon = XstBuild(config_stream, pin_stream)
-    system = 0
 elif device[0] == 'e' or device[0] == '5' or str(device).index('10') == 0:
     bcon = AlteraBuild(config_stream, pin_stream)
-    system = 1
 else:
     print("Unknown device!")
     exit(-3)
@@ -96,9 +89,3 @@ program_only = '-po' in argv
 verbose = '-v' in argv
 
 bcon.Run(files, program, program_only, verbose)
-
-if system == 1:
-    if not program_only:
-        altera(files, bcon, program)
-    else:
-        altera_program()
