@@ -114,7 +114,7 @@ def xst(files, bcon : BuildConfig, program : bool, only_program : bool, verbose 
 
         print("Executing MAP...")
         map_proc = subprocess.Popen(
-            ['map', '-w', '-intstyle silent', '-detail', '-pr b', '-p', bcon.GetDevice(), './project.ngd'],
+            ['map', '-w', '-intstyle ise', '-detail', '-pr b', '-p', bcon.GetDevice(), './project.ngd'],
             cwd=r'./gen/xilinx',
             stdout=map_proc_out
         )

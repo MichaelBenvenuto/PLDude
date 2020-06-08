@@ -24,7 +24,7 @@ class AlteraBuild(BuildConfig):
         return self.pin_stream['altera']
 
     def GetDeviceNoPackage(self):
-        device = str(self.GetDevice())
+        device = str(self.GetDevice()).upper()
         if device.index("EP") == 0:
             if device[2] == 'M':
                 return "EPM"
@@ -32,17 +32,17 @@ class AlteraBuild(BuildConfig):
                 return device[0:][:5]
             else:
                 return device[0:][:6]
-        if device[0] == '5':
+        elif device[0] == '5':
             if device[2] == 'E':
                 return device[0:][:3]
             else:
                 return device[0:][:4]
-        if device.index("10") == 0:
+        elif device.index("10") == 0:
             if device[2] == 'M':
                 return "10M"
             if device[2] == 'C':
                 return device[0:][:3]
-        return ""
+
 
     def Run(self, files, program, only_program, verbose):
         altera(files, self, program, only_program, verbose)
@@ -76,11 +76,14 @@ def altera(files, bcon : BuildConfig, program : bool, only_program : bool, verbo
     if not os.path.exists("./gen/altera"):
         os.makedirs("./gen/altera")
 
+    if not os.path.exists("./gen/altera/logs"):
+        os.makedirs("./gen/altera/logs")
+
     if not (program and only_program):
         qsf_file = open("./gen/altera/project.qsf", "w+")
 
         print("Generating QSF file from pldprj.yml and pldpin.yml...")
-        qsf_file.write("set_global_assignment -name FAMILY \"" + GetFamily(bcon.GetDevice()) + "\"\n")
+        qsf_file.write("set_global_assignment -name FAMILY \"" + GetFamily(bcon.GetDevice()).upper() + "\"\n")
         qsf_file.write("set_global_assignment -name DEVICE " + bcon.GetDevice() + "\n")
         qsf_file.write("set_global_assignment -name TOP_LEVEL_ENTITY " + bcon.GetTopMod() + "\n")
 
@@ -141,7 +144,7 @@ def altera(files, bcon : BuildConfig, program : bool, only_program : bool, verbo
         os.rename("./gen/altera/project.sof", "./gen/altera/bitfile/project.sof")
 
     if program:
-        altera_program()
+        altera_program(verbose)
 
 def altera_program(verbose : bool):
 
