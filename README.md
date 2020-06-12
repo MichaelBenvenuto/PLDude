@@ -38,6 +38,9 @@ requires individual device family libraries to be installed before using the too
 
 `<ISE INSTALL LOCATION>/bin/nt64` (64bit)
 
+#### Path location for Xilinx Vivado
+`<VIVADO INSTALL LOCATION>/bin`
+
 #### Path location for Altera Quartus
 `<ALTERA INSTALL LOCATION>/quartus/bin` (32bit)
 
@@ -58,6 +61,10 @@ default|Only compile HDL source files
 pldude <options>
 ```
 
+It should be noted that `hw_server.bat` inside the Vivado directory requires firewall permission on port 3121. A
+pop-up should be presented on the first run of `hw_server` asking for permission. In some instances, the subprocess
+of `hw_server` does not close properly, kill the process manually if this happens.
+
 ## Configuration files
 
 PLDude uses YAML files to provide a clean abstract configuration interface and supports both common settings and
@@ -67,13 +74,13 @@ As of right now, there are only several different settings within `pldprj.yml`, 
 
 Setting   | Functionality
 ----------|:--------------
-Device    |Determines the type of device the synthesizer is going to target, PLDude automatically picks a vendor based on the device chosen (eg. *XC6SLX9-2FTG256*)
-Filetype* |Determines the language of each file (*VHDL*/*Verilog*/*Mixed*)
-Optimize* |Determines how the synthesizer should optimize the top-level module (*Speed*/*Area*)
-Opt-level*|The level of optimization that should be performed (*0*/*1*)
-Top       |The top module (**THE ENTITY/COMPONENT - NOT THE FILE**)
+device    |Determines the type of device the synthesizer is going to target, PLDude automatically picks a vendor based on the device chosen (eg. *XC6SLX9-2FTG256*)
+filetype* |Determines the language of each file (*VHDL*/*Verilog*/*Mixed*)
+optimize* |Determines how the synthesizer should optimize the top-level module (*Speed*/*Area*)
+opt-level*|The level of optimization that should be performed (*0*/*1*)
+top       |The top module, this is **NOT** the file it is in
 src*      |The directory where source files are located
-devsrc*   |The directory within src where device specific source files are located, these are package independent so for an FPGA such as the *XC6SLX9-2FTG256*, only *XC6SLX9* is required
+devsrc*   |The directory within src where device specific source files are located, these are package independent so for an FPGA such as the *XC6SLX9-2FTG256*, only *XC6SLX9* is required for the respective folder, folders with the names of each device will be in the directory specified by devsrc
 
 **optional*
 
@@ -85,6 +92,10 @@ like the following:
 xst:
     clk: T7
     reset: A9
+
+xilinx7:
+    clk: T8
+    reset: R4
 
 altera:
     clk: R8
