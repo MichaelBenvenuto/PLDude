@@ -7,6 +7,7 @@ from BuildConfig import BuildConfig
 
 from build_xst import XstBuild
 from build_altera import AlteraBuild
+from build_xst7 import Xst7Build
 
 from sys import exit
 
@@ -52,7 +53,10 @@ device = config_stream['device'].lower()
 # Not using a NN, i know this is python, but not everything needs AI...
 bcon = BuildConfig(config_stream, pin_stream)
 if device[0] == 'x':
-    bcon = XstBuild(config_stream, pin_stream)
+    if device[2] == '7':
+        bcon = Xst7Build(config_stream, pin_stream)
+    else:
+        bcon = XstBuild(config_stream, pin_stream)
 elif device[0] == 'e' or device[0] == '5' or str(device).index('10') == 0:
     bcon = AlteraBuild(config_stream, pin_stream)
 else:
@@ -67,22 +71,19 @@ files = []
 glob_ext = "/*"
 
 if mode.lower() == "vhdl":
-    files = [f for f in glob.glob(src_dir + "/**/*.vhd", recursive=True)
-             if not str(os.path.dirname(f)).replace("\\", "/").startswith(src_dir + "/" + bcon.GetDeviceDir())]
+    files = [f for f in glob.glob(src_dir + "/**/*.vhd", recursive=True)]
     glob_ext = "/*.vhd"
 elif mode.lower() == "verilog":
-    files = [f for f in glob.glob(src_dir + "/**/*.v", recursive=True)
-             if not str(os.path.dirname(f)).replace("\\", "/").startswith(src_dir + "/" + bcon.GetDeviceDir())]
+    files = [f for f in glob.glob(src_dir + "/**/*.v", recursive=True)]
     glob_ext = "/*.v"
 elif mode.lower() == "mixed":
-    files = [f for f in glob.glob(src_dir + "/**/*[.v,.vhd]", recursive=True)
-             if not str(os.path.dirname(f)).replace("\\", "/").startswith(src_dir + "/" + bcon.GetDeviceDir())]
+    files = [f for f in glob.glob(src_dir + "/**/*[.v,.vhd]", recursive=True)]
     glob_ext = "/*[.v, .vhd]"
 else:
     print("Unknown mode: " + mode)
     exit(-4)
 
-files.extend(glob.glob(src_dir + "/" + bcon.GetDeviceDir() + "/" + bcon.GetDeviceNoPackage() + glob_ext))
+files.extend(glob.glob(bcon.GetDeviceDir() + "/" + bcon.GetDeviceNoPackage() + glob_ext))
 
 program = '-p' in argv or '-po' in argv
 program_only = '-po' in argv

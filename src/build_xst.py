@@ -154,6 +154,7 @@ def xst(files, bcon : BuildConfig, program : bool, only_program : bool, verbose 
 
 def xst_program(verbose : bool):
 
+    print("Writing cmd file for iMPACT...")
     cmd_file = open("./gen/xilinx/project.cmd", "w+")
     cmd_file.write("setMode -bscan\n")
     cmd_file.write("setCable -p auto\n")
@@ -162,6 +163,7 @@ def xst_program(verbose : bool):
     cmd_file.write("quit\n")
     cmd_file.close()
 
+    print("Executing iMPACT...")
     impact_proc_out = subprocess.PIPE
     if not verbose:
         impact_proc_out = open("./gen/xilinx/logs/impact.log", "w+")

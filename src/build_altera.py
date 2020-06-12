@@ -76,10 +76,10 @@ def altera(files, bcon : BuildConfig, program : bool, only_program : bool, verbo
     if not os.path.exists("./gen/altera"):
         os.makedirs("./gen/altera")
 
-    if not os.path.exists("./gen/altera/logs"):
-        os.makedirs("./gen/altera/logs")
-
     if not (program and only_program):
+        if not os.path.exists("./gen/altera/logs"):
+            os.makedirs("./gen/altera/logs")
+
         qsf_file = open("./gen/altera/project.qsf", "w+")
 
         print("Generating QSF file from pldprj.yml and pldpin.yml...")
@@ -148,6 +148,7 @@ def altera(files, bcon : BuildConfig, program : bool, only_program : bool, verbo
 
 def altera_program(verbose : bool):
 
+    print("Executing quartus_pgm...")
     qpgm_proc_out = subprocess.PIPE
     if not verbose:
         qpgm_proc_out = open("./gen/altera/logs/qpgm.log", "w+")
