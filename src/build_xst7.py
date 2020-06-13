@@ -40,7 +40,6 @@ def xst7(files, bcon : BuildConfig, program : bool, only_program : bool, verbose
                 xst7_synthfile.write("read_verilog " + str(i).replace('\\', '/') + "\n")
 
         print("Configuring synthesis...")
-        xst7_synthfile.write("read_xdc ./pins.xdc\n")
         xst7_synthfile.write("synth_design -top " + bcon.GetTopMod() + " -part " + bcon.GetDevice() + "\n")
         xst7_synthfile.write("opt_design\n")
         xst7_synthfile.write("write_checkpoint -incremental_synth -force ./post_synth.dcp\n")
@@ -49,6 +48,7 @@ def xst7(files, bcon : BuildConfig, program : bool, only_program : bool, verbose
         print("Configuring place and route...")
         xst7_parfile = open("./gen/xilinx7/par.tcl", "w+")
         xst7_parfile.write("open_checkpoint ./post_synth.dcp\n")
+        xst7_parfile.write("read_xdc ./pins.xdc\n")
         xst7_parfile.write("place_design\n")
         xst7_parfile.write("route_design -directive Explore\n")
         xst7_parfile.write("write_checkpoint -force ./post_par.dcp")
@@ -85,7 +85,7 @@ def xst7(files, bcon : BuildConfig, program : bool, only_program : bool, verbose
         print("Executing place and route...")
         par_prog_out = subprocess.PIPE
         if not verbose:
-            par_prog_out = open("./gen/xilinx/logs/par.log")
+            par_prog_out = open("./gen/xilinx7/logs/par.log", "w+")
             synth_prog_out.close()
 
         par_prog = subprocess.Popen(
@@ -98,7 +98,7 @@ def xst7(files, bcon : BuildConfig, program : bool, only_program : bool, verbose
         print("Executing bitstream generation...")
         bit_prog_out = subprocess.PIPE
         if not verbose:
-            bit_prog_out = open("./gen/xilinx/logs/par.log")
+            bit_prog_out = open("./gen/xilinx7/logs/bit.log", "w+")
             par_prog_out.close()
 
         bit_prog = subprocess.Popen(
