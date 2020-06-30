@@ -37,8 +37,11 @@ class XstBuild(BuildConfig):
         dev = str(self.GetDevice())
         return dev.split('-')[0]
 
-    def Run(self, files, program, only_program, verbose):
-        xst(files, self, program, only_program, verbose)
+    def Run(self, files, program, only_program, simulate, simmod, verbose):
+        if simulate:
+            xst_simulate(files, simmod, self)
+        else:
+            xst(files, self, program, only_program, verbose)
 
 
 def xst(files, bcon : BuildConfig, program : bool, only_program : bool, verbose : bool):
@@ -183,3 +186,46 @@ def xst_program(verbose : bool):
     if not verbose:
         impact_proc_out.close()
 
+def xst_simulate(files, simmod, bcon : BuildConfig):
+    if not os.path.exists("./gen/xilinx/simulation"):
+        os.makedirs("./gen/xilinx/simulation")
+
+    sim_file = open("./gen/xilinx/simulation/sim.prj", "w+")
+
+    for i in files:
+        file_ext = os.path.splitext(i)
+        if len(file_ext) < 2:
+            continue
+
+        if file_ext[1] == ".vhd":
+            sim_file.write("vhdl work ../../" + str(i).replace('\\', '/') + "\n")
+        elif file_ext[1] == ".v":
+            sim_file.write("verilog work ../../" + str(i).replace('\\', '/') + "\n")
+
+    print("Writing tcl batch file...")
+    file_tcl = open("./gen/xilinx/simulation/bat.tcl", "w+")
+    file_tcl.write("onerror {resume}\nwave add /")
+    file_tcl.close()
+
+    be_quiet = open(os.devnull, "w")
+
+    print("Executing fuse...")
+    fuse_proc = subprocess.Popen(
+        ["fuse", "-prj", "./sim.prj", "-top", simmod, "-o", "./xst_sim.exe"],
+        cwd="./gen/xilinx/simulation",
+        stdout=be_quiet,
+        stderr=be_quiet
+    )
+
+    process_handler(fuse_proc)
+
+    print("Executing iSim...")
+    subprocess.Popen(
+        ["xst_sim", "-gui", "-tclbatch", "./bat.tcl"],
+        cwd="./gen/xilinx/simulation",
+        shell=True,
+        stdout=be_quiet,
+        stderr=be_quiet
+    )
+
+    be_quiet.close()

@@ -67,7 +67,7 @@ class BuildConfig:
     def GetOptLevel(self):
         print("Cannot use abstract build config...")
 
-    def Run(self, files, program, only_program, verbose):
+    def Run(self, files, program, only_program, simulate, simulate_arg, verbose):
         print("Cannot run abstract build config...")
 
 def process_handler(proc : subprocess):

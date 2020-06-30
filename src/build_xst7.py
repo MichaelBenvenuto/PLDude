@@ -15,8 +15,11 @@ class Xst7Build(XstBuild):
             exit(-5)
         return self.pin_stream['xilinx7']
 
-    def Run(self, files, program, only_program, verbose):
-        xst7(files, self, program, only_program, verbose)
+    def Run(self, files, program, only_program, simulate, sim_mod, verbose):
+        if simulate:
+            xilinx7_simulate(files, sim_mod, self)
+        else:
+            xst7(files, self, program, only_program, verbose)
 
 def xst7(files, bcon : BuildConfig, program : bool, only_program : bool, verbose : bool):
     if not os.path.exists("./gen/xilinx7/"):
@@ -37,7 +40,7 @@ def xst7(files, bcon : BuildConfig, program : bool, only_program : bool, verbose
             if file_ext[1] == ".vhd":
                 xst7_synthfile.write("read_vhdl ../../" + str(i).replace('\\', '/') + "\n")
             elif file_ext[1] == ".v":
-                xst7_synthfile.write("read_verilog " + str(i).replace('\\', '/') + "\n")
+                xst7_synthfile.write("read_verilog ../../" + str(i).replace('\\', '/') + "\n")
 
         print("Configuring synthesis...")
         xst7_synthfile.write("synth_design -top " + bcon.GetTopMod() + " -part " + bcon.GetDevice() + "\n")
@@ -146,3 +149,47 @@ def xilinx7_program(verbose : bool):
 
     process_handler(program_prog)
     os.kill(hw_server_prog.pid, signal.CTRL_BREAK_EVENT)
+
+def xilinx7_simulate(files, sim_mod, bcon : BuildConfig):
+    if not os.path.exists("./gen/xilinx7/simulation"):
+        os.makedirs("./gen/xilinx7/simulation")
+
+    sim_file = open("./gen/xilinx7/simulation/sim.prj", "w+")
+
+    print("Writing simulation project file...")
+    for i in files:
+        file_ext = os.path.splitext(i)
+        if len(file_ext) < 2:
+            continue
+
+        if file_ext[1] == ".vhd":
+            sim_file.write("vhdl work ../../" + str(i).replace('\\', '/') + "\n")
+        elif file_ext[1] == ".v":
+            sim_file.write("verilog work ../../" + str(i).replace('\\', '/') + "\n")
+
+    sim_file.close()
+
+    print("Writing tcl batch file...")
+    file_tcl = open("./gen/xilinx7/simulation/bat.tcl", "w+")
+    file_tcl.write("create_wave_config; add_wave /; set_property needs_save false [current_wave_config]")
+    file_tcl.close()
+
+    be_quiet = open(os.devnull, "w")
+
+    print("Executing xelab...")
+    xelab_prog = subprocess.Popen(
+        ["xelab.bat", "-prj", "./sim.prj", "-debug", "typical", "-s", "sim.out", "work." + sim_mod],
+        cwd='./gen/xilinx7/simulation',
+        stdout=be_quiet,
+        stderr=be_quiet
+    )
+
+    process_handler(xelab_prog)
+
+    print("Executing iSim...")
+    subprocess.Popen(
+        ["xsim.bat", "sim.out", "-gui", "-tclbatch", "./bat.tcl"],
+        cwd='./gen/xilinx7/simulation',
+        stdout=be_quiet,
+        stderr=be_quiet
+    )

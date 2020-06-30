@@ -1,7 +1,10 @@
 .idea/*
 __pycache__/*
 gen/*
-
 /*.yml
-
 src/__pycache__
+/dist
+/build
+/pldude.spec
+/vhdl_src
+/.Xil

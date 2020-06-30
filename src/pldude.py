@@ -16,7 +16,7 @@ system = 0
 config_file = 0
 pin_file = 0
 
-print("PLDude v0.2")
+print("PLDude v0.4")
 print("-----------")
 
 try:
@@ -88,5 +88,21 @@ files.extend(glob.glob(bcon.GetDeviceDir() + "/" + bcon.GetDeviceNoPackage() + g
 program = '-p' in argv or '-po' in argv
 program_only = '-po' in argv
 verbose = '-v' in argv
+simulate = '-sim' in argv
 
-bcon.Run(files, program, program_only, verbose)
+simulate_arg = '-'
+
+# This is so ugly...
+if simulate:
+    try:
+        simulate_arg = argv[argv.index('-sim') + 1]
+    except ValueError:
+        simulate_arg = '-'
+    except IndexError:
+        simulate_arg = '-'
+
+if simulate_arg[0] == '-' and simulate:
+    print("Module to simulate: ", end='')
+    simulate_arg = input()
+
+bcon.Run(files, program, program_only, simulate, simulate_arg, verbose)

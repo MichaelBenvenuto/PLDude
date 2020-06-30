@@ -46,16 +46,31 @@ requires individual device family libraries to be installed before using the too
 
 `<ALTERA INSTALL LOCATION>/quartus/bin64` (64bit)
 
+#### Additional Environment Variables for Xilinx ISE
+For simulation using iSim-ISE, additional environment variables will be needed, these are:
+
+`XILINX = <ISE INSTALL LOCATION>`
+
+`PLATFORM = nt64` (Use `nt` for 32 bit)
+
+`LD_LIBRARY_PATH = <XILINX>\lib\<PLATFORM>` (Priority, dynamic linking occurs in this directory for iSim)
+
+If these environment variables are not defined, a segfault will occur and iSim will not run for 6-Series devices. Optionally, you can
+replace the path location defined earlier with:
+
+`<XILINX>/bin/<PLATFORM>`
+
 ## Running
 PLDude has several command line arguments to choose from. These enable programming and may disable the compilation and only program the
 device defined in `pldprj.yml` with a pre-generated bitfile
 
-Option | Functionality
--------|--------------
-default|Only compile HDL source files
--p     |Both compile and program the device
--po    |Only program the device
--v     |Enable output to console
+Option          | Functionality
+----------------|--------------
+default         |Only compile HDL source files
+-p              |Both compile and program the device
+-po             |Only program the device
+-v              |Enable output to console
+-sim [module]   |Simulate file (Overrides other args)
 
 ```
 pldude <options>
@@ -65,10 +80,12 @@ It should be noted that `hw_server.bat` inside the Vivado directory requires fir
 pop-up should be presented on the first run of `hw_server` asking for permission. In some instances, the subprocess
 of `hw_server` does not close properly, kill the process manually if this happens.
 
+Using `-sim` without the corresponding file argument will prompt the user for a file to input before simulation
+
 ## Configuration files
 
 PLDude uses YAML files to provide a clean abstract configuration interface and supports both common settings and
-vendor specific settings. 
+vendor specific settings. **It is strongly recommended that users keep all filenames and modules the same!**
 
 As of right now, there are only several different settings within `pldprj.yml`, these settings do the following:
 

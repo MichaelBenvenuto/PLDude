@@ -44,12 +44,15 @@ class AlteraBuild(BuildConfig):
                 return device[0:][:3]
 
 
-    def Run(self, files, program, only_program, verbose):
-        altera(files, self, program, only_program, verbose)
+    def Run(self, files, program, only_program, simulate, simulate_file, verbose):
+        if simulate:
+            print("Altera simulation not supported yet!")
+        else:
+            altera(files, self, program, only_program, verbose)
 
 # Intel claims that quartus_map "automatically" detects the device family based on the part...
 # What a croc of sh*t...
-# This is only based of of quartus lite
+# This is only based off of quartus lite
 def GetFamily(device : str):
     if device.index("EP") == 0:
         if device[3] == 'C':
