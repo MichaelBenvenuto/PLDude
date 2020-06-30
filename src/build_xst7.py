@@ -163,9 +163,9 @@ def xilinx7_simulate(files, sim_mod, bcon : BuildConfig):
             continue
 
         if file_ext[1] == ".vhd":
-            sim_file.write("vhdl work ../../" + str(i).replace('\\', '/') + "\n")
+            sim_file.write("vhdl work ../../../" + str(i).replace('\\', '/') + "\n")
         elif file_ext[1] == ".v":
-            sim_file.write("verilog work ../../" + str(i).replace('\\', '/') + "\n")
+            sim_file.write("verilog work ../../../" + str(i).replace('\\', '/') + "\n")
 
     sim_file.close()
 
@@ -190,6 +190,7 @@ def xilinx7_simulate(files, sim_mod, bcon : BuildConfig):
     subprocess.Popen(
         ["xsim.bat", "sim.out", "-gui", "-tclbatch", "./bat.tcl"],
         cwd='./gen/xilinx7/simulation',
-        stdout=be_quiet,
-        stderr=be_quiet
+        close_fds=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
     )
