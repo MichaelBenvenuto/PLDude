@@ -78,62 +78,59 @@ def xst(files, bcon : BuildConfig, program : bool, only_program : bool, verbose 
         prj_file.close()
         xst_file.close()
 
-        xst_proc_out = subprocess.PIPE
-        if not verbose:
-            xst_proc_out = open("./gen/xilinx/logs/xst.log", "w+")
+        xst_proc_out = open("./gen/xilinx/logs/xst.log", "w+")
 
-        print("Executing XST for synthesis...")
+        print("Executing XST...")
         xst_proc = subprocess.Popen(
             ['xst', '-ifn ./xst.scr', '-ofn ./project_result.srp', '-intstyle ise'],
             cwd=r'./gen/xilinx',
-            stdout=xst_proc_out
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT
         )
-        process_handler(xst_proc)
-        ngd_proc_out = subprocess.PIPE
-        if not verbose:
-            ngd_proc_out = open("./gen/xilinx/logs/ngd.log", "w+")
-            xst_proc_out.close()
-        print("XST has finished...")
+        process_handler(xst_proc, verbose, xst_proc_out)
+        xst_proc_out.close()
 
         print("Generating UCF file from pldpin.yml...")
         ucf_file = open("./gen/xilinx/project.ucf", "w+")
         pins = bcon.GetPins()
         for i in pins:
-            ucf_file.write("NET \"" + str(i) + "\" LOC=\"" + str(pins[i]) + "\";\n")
+            pin = pins[i]
+            if type(pin) == str:
+                ucf_file.write("NET \"" + str(i) + "\" LOC=\"" + str(pin) + "\";\n")
+            elif type(pin) == dict:
+                ucf_file.write("NET \"" + str(i) + "\" IOSTANDARD=\"" + str(pin['iostd']) + "\" LOC=\"" + str(pin['pkg']) + "\";\n")
         ucf_file.close()
         print("UCF file generated...")
 
+        ngd_proc_out = open("./gen/xilinx/logs/ngd.log", "w+")
         print("Executing NGDBuild...")
         ngd_proc = subprocess.Popen(
             ['ngdbuild', '-p', bcon.GetDevice(), '-uc ./project.ucf', './project.ngc', './project.ngd', '-intstyle ise'],
             cwd=r'./gen/xilinx',
-            stdout=ngd_proc_out
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT
         )
-        process_handler(ngd_proc)
-        map_proc_out = subprocess.PIPE
-        if not verbose:
-            map_proc_out = open("./gen/xilinx/logs/map.log", "w+")
-            ngd_proc_out.close()
+        process_handler(ngd_proc, verbose, ngd_proc_out)
 
+        map_proc_out = open("./gen/xilinx/logs/map.log", "w+")
         print("Executing MAP...")
         map_proc = subprocess.Popen(
             ['map', '-w', '-intstyle ise', '-detail', '-pr b', '-p', bcon.GetDevice(), './project.ngd'],
             cwd=r'./gen/xilinx',
-            stdout=map_proc_out
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT
         )
-        process_handler(map_proc)
-        par_proc_out = subprocess.PIPE
-        if not verbose:
-            map_proc_out.close()
-            par_proc_out = open("./gen/xilinx/logs/par.log", "w+")
+        process_handler(map_proc, verbose, map_proc_out)
+        par_proc_out = open("./gen/xilinx/logs/par.log", "w+")
 
         print("Executing PAR...")
         par_proc = subprocess.Popen(
             ['par', '-w', '-p', '-intstyle ise', './project.ncd', './project_par.ncd', './project.pcf'],
             cwd=r'./gen/xilinx',
-            stdout=par_proc_out
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT
         )
-        process_handler(par_proc)
+        process_handler(par_proc, verbose, par_proc_out)
         bit_proc_out = subprocess.PIPE
         if not verbose:
             bit_proc_out = open("./gen/xilinx/logs/bit.log", "w+")
@@ -145,9 +142,10 @@ def xst(files, bcon : BuildConfig, program : bool, only_program : bool, verbose 
         bit_proc = subprocess.Popen(
             ['bitgen', '-w', '-g CRC:Enable', '-intstyle ise', './project_par.ncd', './bitfile/project.bit', './project.pcf'],
             cwd=r'./gen/xilinx',
-            stdout=bit_proc_out
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT
         )
-        process_handler(bit_proc)
+        process_handler(bit_proc, verbose, bit_proc_out)
 
         if not verbose:
             bit_proc_out.close()
@@ -213,8 +211,7 @@ def xst_simulate(files, simmod, bcon : BuildConfig):
     fuse_proc = subprocess.Popen(
         ["fuse", "-prj", "./sim.prj", "-top", simmod, "-o", "./xst_sim.exe"],
         cwd="./gen/xilinx/simulation",
-        stdout=be_quiet,
-        stderr=be_quiet
+        stdout=be_quiet
     )
 
     process_handler(fuse_proc)
@@ -223,9 +220,7 @@ def xst_simulate(files, simmod, bcon : BuildConfig):
     subprocess.Popen(
         ["xst_sim", "-gui", "-tclbatch", "./bat.tcl"],
         cwd="./gen/xilinx/simulation",
-        shell=True,
-        stdout=be_quiet,
-        stderr=be_quiet
+        stdout=be_quiet
     )
 
     be_quiet.close()

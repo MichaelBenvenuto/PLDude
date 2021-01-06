@@ -16,7 +16,7 @@ system = 0
 config_file = 0
 pin_file = 0
 
-print("PLDude v0.4")
+print("PLDude v0.8")
 print("-----------")
 
 try:

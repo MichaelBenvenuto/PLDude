@@ -61,8 +61,8 @@ replace the path location defined earlier with:
 `<XILINX>/bin/<PLATFORM>`
 
 ## Running
-PLDude has several command line arguments to choose from. These enable programming and may disable the compilation and only program the
-device defined in `pldprj.yml` with a pre-generated bitfile
+PLDude has several command line arguments to choose from. These can enable programming, toggle synthesis/compilation or program the device with a
+prepared bitfile
 
 Option          | Functionality
 ----------------|--------------
@@ -78,7 +78,7 @@ pldude <options>
 
 It should be noted that `hw_server.bat` inside the Vivado directory requires firewall permission on port 3121. A
 pop-up should be presented on the first run of `hw_server` asking for permission. In some instances, the subprocess
-of `hw_server` does not close properly, kill the process manually if this happens.
+of `hw_server` does not close properly, kill the process manually if this happens. Remote programming is not yet supported
 
 Using `-sim` without the corresponding file argument will prompt the user for a file to input before simulation
 
@@ -89,15 +89,18 @@ vendor specific settings. **It is strongly recommended that users keep all filen
 
 As of right now, there are only several different settings within `pldprj.yml`, these settings do the following:
 
-Setting   | Functionality
-----------|:--------------
-device    |Determines the type of device the synthesizer is going to target, PLDude automatically picks a vendor based on the device chosen (eg. *XC6SLX9-2FTG256*)
-filetype* |Determines the language of each file (*VHDL*/*Verilog*/*Mixed*)
-optimize* |Determines how the synthesizer should optimize the top-level module (*Speed*/*Area*)
-opt-level*|The level of optimization that should be performed (*0*/*1*)
-top       |The top module, this is **NOT** the file it is in
-src*      |The directory where source files are located
-devsrc*   |The directory within src where device specific source files are located, these are package independent so for an FPGA such as the *XC6SLX9-2FTG256*, only *XC6SLX9* is required for the respective folder, folders with the names of each device will be in the directory specified by devsrc
+Setting         | Functionality
+----------------|:--------------
+device          |Determines the type of device the synthesizer is going to target, PLDude automatically picks a vendor based on the device chosen (eg. *XC6SLX9-2FTG256*)
+filetype*       |Determines the language of each file (*VHDL*/*Verilog*/*Mixed*)
+optimize*       |Determines how the synthesizer should optimize the top-level module (*Speed*/*Area*)
+opt-level*      |The level of optimization that should be performed (*0*/*1*)
+clock_report*   |Report clock statistics (*True*/*False*)
+timing_reports* |List of timing statistics to report (*synth*|*place*|*route*)
+util_reports*   |List of utilization statistics to report (*synth*|*place*|*route*)
+top             |The top module, this is **NOT** the file it is in
+src*            |The directory where source files are located
+devsrc*         |The directory within src where device specific source files are located, these are package independent so for an FPGA such as the *XC6SLX9-2FTG256*, only *XC6SLX9* is required for the respective folder, folders with the names of each device will be in the directory specified by devsrc
 
 **optional*
 
@@ -119,16 +122,45 @@ altera:
     reset: A2
 ```
 
+In place of strings for pin mappings, an additional YAML layer can be added to the mapping string to define the package and the iostandard.
+The iostandard configuration is dependent on the vendor's standards and varies between Vivado, ISE and Quartus. This should really be used
+for output pins, unlike the example implies with the redefinition of 'reset', however, some tools may support input pin standards. All of
+these configurations produce similar results (3.3v CMOS standard on all devices). This is an advanced feature and should be handled by experienced users.
+**Damage to your board or device may occur with improper settings, use with caution**
+```yml
+xst:
+    clk: T7
+    reset:
+        pkg: A9
+        iostd: LVCMOS33
+
+xilinx7:
+    clk: T8
+    reset:
+        pkg: R4
+        iostd: LVCMOS33
+
+altera:
+    clk: R8
+    reset:
+        pkg: A2
+        iostd: LVCMOS
+```
+
 Multiple pin configurations can be defined in a singular file, the format is as follows:
 ```yml
 <BRAND>:
     <I/O NAME>: <PHYSICAL PIN>
+    <I/O Name>:
+        pkg: <PHYSICAL PIN>
+        iostd: <IO STANDARD>
 ```
 
 Key         |Meaning
 ------------|---------
 Brand       |The synthesizer tool to use (xst, altera, etc.)
 I/O name    |The name of the respective port in the top level file
+I/O standard|The name of the IO standard for the given pin
 Physical Pin|The pin mapping on the actual device
 
 ## Bitfile generation

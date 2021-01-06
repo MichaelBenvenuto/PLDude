@@ -1,7 +1,6 @@
 import subprocess
-import glob
 
-from sys import exit
+from sys import *
 
 class BuildConfig:
     def __init__(self, config_stream : dict, pin_stream : dict):
@@ -9,13 +8,20 @@ class BuildConfig:
         self.pin_stream = pin_stream
 
     def GetFileType(self):
-        if not 'filetype' in self.config_stream:
-            return "mixed"
-        ft = self.config_stream['filetype']
+        ft = self.config_stream.get("filetype", None)
         if ft is None:
             print("Warning! Null filetype, defaulting to \"mixed\"")
             return "mixed"
         return ft
+
+    def GetTimingReport(self, stage : str):
+        return stage in self.config_stream.get("timing_reports", [])
+
+    def GetUtilizeReport(self, stage : str):
+        return stage in self.config_stream.get("util_reports", [])
+
+    def GetClockUtilize(self):
+        return self.config_stream.get("clock_report", True)
 
     def GetTopMod(self):
         if not 'top' in self.config_stream:
@@ -58,6 +64,9 @@ class BuildConfig:
             return ""
         return devsrc
 
+    def GetVHDL2008(self):
+        return self.config_stream.get('vhdl_2008', False)
+
     def GetPins(self):
         print("Cannot use abstract build config...")
 
@@ -70,10 +79,11 @@ class BuildConfig:
     def Run(self, files, program, only_program, simulate, simulate_arg, verbose):
         print("Cannot run abstract build config...")
 
-def process_handler(proc : subprocess):
-    while True:
-        return_code = proc.poll()
-        if return_code is not None:
-            if return_code != 0:
-                exit(return_code)
-            break
+def process_handler(proc : subprocess, verbose : bool, file):
+    data = proc.communicate()
+    if file is not None:
+        file.write(data[0].decode().replace('\r', ''))
+    if verbose and data[0] is not None:
+        print(data[0].decode().replace('\r', ''))
+    if data[1] is not None:
+        print(data[1].decode().replace('\r', ''))

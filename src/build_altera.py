@@ -96,47 +96,47 @@ def altera(files, bcon : BuildConfig, program : bool, only_program : bool, verbo
         pins = bcon.GetPins()
 
         for i in pins:
-            qsf_file.write("set_location_assignment PIN_" + str(pins[i]) + " -to " + str(i) + "\n")
+            pin = pins[i]
+            if type(pin) == str:
+                qsf_file.write("set_location_assignment PIN_" + str(pin) + " -to " + str(i) + "\n")
+            elif type(pin) == dict:
+                qsf_file.write("set_instance_assignment -name IOSTANDARD \"" + str(pins['iostd']) + "\" -to " + str(i))
+                qsf_file.write("set_location_assignment PIN_" + str(pin['pkg']) + " -to " + str(i) + "\n")
 
         qsf_file.close()
 
-        qmap_proc_out = subprocess.PIPE
-        if not verbose:
-            qmap_proc_out = open("./gen/altera/logs/qmap.log", "w+")
+        qmap_proc_out = open("./gen/altera/logs/qmap.log", "w+")
 
         print("Executing quartus_map (Analysis/synthesis)...")
         qmap_proc = subprocess.Popen(
             ['quartus_map', 'project'],
             cwd="./gen/altera",
-            stdout=qmap_proc_out
+            stdout=subprocess.PIPE
         )
-        process_handler(qmap_proc)
+        process_handler(qmap_proc, verbose, qmap_proc_out)
+        qmap_proc_out.close()
 
-        qfit_proc_out = subprocess.PIPE
-        if not verbose:
-            qmap_proc_out.close()
-            qfit_proc_out = open("./gen/altera/logs/qfit.log", "w+")
+        qfit_proc_out = open("./gen/altera/logs/qfit.log", "w+")
 
         print("Executing quartus_fit...")
         qfit_proc = subprocess.Popen(
             ['quartus_fit', 'project'],
             cwd="./gen/altera",
-            stdout=qfit_proc_out
+            stdout=subprocess.PIPE
         )
-        process_handler(qfit_proc)
+        process_handler(qfit_proc, verbose, qfit_proc_out)
+        qfit_proc_out.close()
 
-        qasm_proc_out = subprocess.PIPE
-        if not verbose:
-            qfit_proc_out.close()
-            qasm_proc_out = open("./gen/altera/logs/qfit.log", "w+")
+        qasm_proc_out = open("./gen/altera/logs/qfit.log", "w+")
 
         print("Executing quartus_asm...")
         qasm_proc = subprocess.Popen(
             ['quartus_asm', 'project'],
             cwd="./gen/altera",
-            stdout=qasm_proc_out
+            stdout=subprocess.PIPE
         )
-        process_handler(qasm_proc)
+        process_handler(qasm_proc, verbose, qasm_proc_out)
+        qasm_proc_out.close()
 
         if not os.path.exists("./gen/altera/bitfile"):
             os.makedirs("./gen/altera/bitfile")
@@ -152,20 +152,17 @@ def altera(files, bcon : BuildConfig, program : bool, only_program : bool, verbo
 def altera_program(verbose : bool):
 
     print("Executing quartus_pgm...")
-    qpgm_proc_out = subprocess.PIPE
-    if not verbose:
-        qpgm_proc_out = open("./gen/altera/logs/qpgm.log", "w+")
+    qpgm_proc_out = open("./gen/altera/logs/qpgm.log", "w+")
 
     qpgm_proc = subprocess.Popen(
         ['quartus_pgm', '-m', 'JTAG', '-o', 'p;./gen/altera/bitfile/project.sof'],
-        stdout=qpgm_proc_out,
-        stderr=qpgm_proc_out
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE
     )
+    process_handler(qpgm_proc, verbose, qpgm_proc_out)
+    qpgm_proc_out.close()
 
-    qpgm_proc.wait()
     return_code = qpgm_proc.poll()
     if return_code is not None and return_code != 0:
         print("Device was not found by JTAG!")
         exit(-7)
-
-    qpgm_proc_out.close()
