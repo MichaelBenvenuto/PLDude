@@ -214,7 +214,7 @@ def xst_simulate(files, simmod, bcon : BuildConfig):
         stdout=be_quiet
     )
 
-    process_handler(fuse_proc)
+    process_handler(fuse_proc, False, None)
 
     print("Executing iSim...")
     subprocess.Popen(
