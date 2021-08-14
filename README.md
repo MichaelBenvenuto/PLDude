@@ -16,18 +16,12 @@ be of any use. It is recommended that users install vendor specific IDEs to ensu
 this is not needed.
 
 ### Building PLDude
-`pyinstaller` is required to package the python script files into an executable. Ensure that it is installed by
-running:
+*Installing the PLDude as an executable was removed in v0.9.0*
 
-```
-pip install pyinstaller
-```
+PLDude now runs within the python environment as a module, to install it, simply run the following command in the root 
+project directory:
 
-After pyinstaller is installed, simply run `build.py` to generate the executable:
-
-```
-python3 ./build.py
-```
+`pip install .`
 
 ### Setting proper environment variables
 Ensure that the PATH environment variable has the location of any command line tools added. Note that altera quartus
@@ -66,21 +60,22 @@ prepared bitfile
 
 Option          | Functionality
 ----------------|--------------
-default         |Only compile HDL source files
--p              |Both compile and program the device
--po             |Only program the device
--v              |Enable output to console
--sim [module]   |Simulate file (Overrides other args)
+-c,--compile    |Synthesize project
+-p,--program    |Upload bitfile to device
+-v,--verbosity  |Set output verbosity level
+-s,--simulate   |Simulate file (Overrides above arguments)
+-h,--help       |Display help message
+-x,--clean      |Clean tool-generated files after any specified steps, ignored if -c is set without -p
 
 ```
-pldude <options>
+pldude [-c|--compile] [-p|--program] [-v|--verbosity <DEBUG|INFO|WARNING|ERROR|NONE>] [-s|--simulate <module>] [-h|--help] [-x|--clean]
 ```
 
 It should be noted that `hw_server.bat` inside the Vivado directory requires firewall permission on port 3121. A
 pop-up should be presented on the first run of `hw_server` asking for permission. In some instances, the subprocess
 of `hw_server` does not close properly, kill the process manually if this happens. Remote programming is not yet supported
 
-Using `-sim` without the corresponding file argument will prompt the user for a file to input before simulation
+~~Using `-s,--simulate` without the corresponding file argument will prompt the user for a file to input before simulation~~
 
 ## Configuration files
 
@@ -158,7 +153,7 @@ Multiple pin configurations can be defined in a singular file, the format is as 
 
 Key         |Meaning
 ------------|---------
-Brand       |The synthesizer tool to use (xst, altera, etc.)
+Brand       |The synthesizer tool to use (Xilinx7, Xilinx, Altera, etc.)
 I/O name    |The name of the respective port in the top level file
 I/O standard|The name of the IO standard for the given pin
 Physical Pin|The pin mapping on the actual device

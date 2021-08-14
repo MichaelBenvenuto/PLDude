@@ -1,10 +1,5 @@
-.idea/*
-__pycache__/*
-gen/*
+/gen/*
 /*.yml
-src/__pycache__
-/dist
-/build
-/pldude.spec
-/vhdl_src
-/.Xil
+**/__pycache__
+/pldude.egg-info
+/src
