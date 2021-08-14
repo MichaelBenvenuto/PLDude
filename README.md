@@ -21,7 +21,7 @@ this is not needed.
 PLDude now runs within the python environment as a module, to install it, simply run the following command in the root 
 project directory:
 
-`pip install .`
+`python setup.py install --user`
 
 ### Setting proper environment variables
 Ensure that the PATH environment variable has the location of any command line tools added. Note that altera quartus

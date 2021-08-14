@@ -30,22 +30,21 @@ Options:
 
 def main():
     try:
-        print(splash)
-
-        if len(sys.argv[1:]) == 0:
-            print(usage)
-            sys.exit(0)
-
         try:
-            arg, opt = getopt.getopt(sys.argv[1:], "cpv:s:hx", ['compile', 'program', 'verbosity=', 'simulate=', 'help', 'clean'])
-        except getopt.GetoptError as err:
-            print(err)
-            print(usage)
-            sys.exit(2)
+            print(splash)
 
-        try:
+            if len(sys.argv[1:]) == 0:
+                print(usage)
+                sys.exit(0)
+
+            try:
+                arg, opt = getopt.getopt(sys.argv[1:], "cpv:s:hx", ['compile', 'program', 'verbosity=', 'simulate=', 'help', 'clean'])
+            except getopt.GetoptError as err:
+                print(err)
+                print(usage)
+                sys.exit(2)
+            
             bconf = BuildConfig()
-
             for o, a in arg:
                 if o in ('-c', '--compile'):
                     bconf.SetCompile(True)
@@ -60,6 +59,8 @@ def main():
                 elif o in ('-h', '--help'):
                     print(usage)
                     sys.exit(0)
+
+            bconf.LoadConfig()
 
             bconf.GetSpecific().run()
         except PLDudeError as err:

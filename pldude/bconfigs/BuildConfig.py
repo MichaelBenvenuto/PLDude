@@ -14,10 +14,10 @@ import subprocess
 class CustomFormatter(logging.Formatter):
     
     FORMATS = {
-        logging.DEBUG : '\u001b[32m',
-        logging.INFO : '\u001b[32;1m',
-        logging.WARNING : '\u001b[33;1m',
-        logging.ERROR : '\u001b[31;1m',
+        logging.DEBUG : '\u001b[37m',
+        logging.INFO : '\u001b[32m',
+        logging.WARNING : '\u001b[33',
+        logging.ERROR : '\u001b[31',
         logging.CRITICAL : '\u001b[31m'
     }
     
@@ -47,6 +47,7 @@ class BuildConfig():
 
         self._logging.setLevel(logging.INFO)
 
+    def LoadConfig(self):
         try:
             project_yaml = open("pldprj.yml", "r")
             pinproj_yaml = open("pinprj.yml", "r")
