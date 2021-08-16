@@ -1,16 +1,19 @@
-from genericpath import getmtime
 import logging
+from posixpath import abspath
 import sys
 import os
 import io
 import shutil
-from typing import Any, IO, Match
-from pldude.utils.error import PLDudeError
-from typing import Union
 import yaml
 import re
 import glob
 import subprocess
+
+from typing import Any, IO, Match
+from pldude.utils.error import PLDudeError
+from typing import Union
+from genericpath import getmtime
+from pldude.resources import ResourceManager
 
 class CustomFormatter(logging.Formatter):
     
@@ -32,7 +35,7 @@ class RepFile():
         self.dir = dir
         self.type = type
 
-class BuildConfig():
+class BuildConfig(ResourceManager):
 
     REQUIRED_PROJ_PARAMS = ('device', 'top')
 
@@ -55,12 +58,6 @@ class BuildConfig():
         self._logging.addHandler(ch)
 
         self._logging.setLevel(logging.INFO)
-
-    def GetResource(self, resource : str) -> io.TextIOWrapper:
-        return open(self.GetResourceDir(resource))
-
-    def GetResourceDir(self, resource : str) -> str:
-        return "./pldude/resources/" + self.__class__.__name__ + "/" + resource
 
     def LoadConfig(self):
         try:
@@ -184,10 +181,10 @@ class BuildConfig():
         if os.path.exists("./gen/timestamp.yml"):
             timestamps = open("./gen/timestamp.yml", "r")
             timestamps_yml = dict(yaml.load(timestamps, Loader=yaml.FullLoader))
-            update = update or (timestamps_yml.get('./pinprj.yml', None) != int(os.path.getmtime('./pinprj.yml')))
-            update = update or (timestamps_yml.get('./pldprj.yml', None) != int(os.path.getmtime('./pldprj.yml')))
+            update = update or (timestamps_yml.get(os.path.abspath('./pinprj.yml'), None) != int(os.path.getmtime(os.path.abspath('./pinprj.yml'))))
+            update = update or (timestamps_yml.get(os.path.abspath('./pldprj.yml'), None) != int(os.path.getmtime(os.path.abspath('./pldprj.yml'))))
             for i in self._files:
-                if int(os.path.getmtime(i.dir)) != timestamps_yml.get(i, None):
+                if int(os.path.getmtime(i.dir)) != timestamps_yml.get(i.dir, None):
                     update = True
                     timestamps.close()
                     break
@@ -226,8 +223,8 @@ class BuildConfig():
             pass
 
         timestamps_yml.update({
-            './pinprj.yml' : int(os.path.getmtime('./pinprj.yml')),
-            './pldprj.yml' : int(os.path.getmtime('./pldprj.yml'))
+            os.path.abspath('./pinprj.yml') : int(os.path.getmtime('./pinprj.yml')),
+            os.path.abspath('./pldprj.yml') : int(os.path.getmtime('./pldprj.yml'))
         })
 
         if self._endargs.get('compile', False):
@@ -338,7 +335,7 @@ class Xilinx7(BuildConfig):
                 if match and vivado_match.group(1) == 'WARNING':
                     continue
                 
-                vivado_param = '[\u001b[34m' + vivado_match.group(2) + '\u001b[0m] '
+                vivado_param = '[\u001b[94m' + vivado_match.group(2) + '\u001b[0m] '
                 # bring tool info level messages downto debug for PLDude
                 if vivado_match.group(1) == 'INFO':
                     self._logging.debug(vivado_param + vivado_match.group(3))
@@ -497,7 +494,7 @@ class Altera(BuildConfig):
             if m:
                 altera_param = ''
                 if m.group(2):
-                    altera_param = '[\u001b[34m' + m.group(2) + '\u001b[0m] '
+                    altera_param = '[\u001b[94m' + m.group(2) + '\u001b[0m] '
                 if m.group(1) == 'Info':
                     if m.group(3)[0:5] != '*****':
                         self._logging.debug(altera_param + m.group(3))
@@ -540,7 +537,9 @@ class Altera(BuildConfig):
         if os.path.exists(bitfile_dir + '/project.sof'):
             os.remove(bitfile_dir + '/project.sof')
         os.rename(compile_dir + '/project.sof', bitfile_dir + '/project.sof')
+        self._endargs['compile'] = True
 
     def program(self):
         bitfile_dir = self.GetDirectory('compile/bitfile')
         self.RunSubprocess('Executing programmer...', bitfile_dir, ['quartus_pgm', '-m', 'JTAG', '-o', 'p;./project.sof'])
+        self._endargs['program'] = True

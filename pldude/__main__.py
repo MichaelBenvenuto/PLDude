@@ -1,6 +1,5 @@
 from pldude.bconfigs.buildconf import BuildConfig
 from pldude.utils.error import PLDudeError
-import subprocess
 import sys
 import getopt
 
@@ -44,7 +43,7 @@ def main():
                 print(err)
                 print(usage)
                 sys.exit(2)
-            
+
             bconf = BuildConfig()
             for o, a in arg:
                 if o in ('-c', '--compile'):
