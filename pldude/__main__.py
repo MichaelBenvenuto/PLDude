@@ -1,4 +1,5 @@
-from pldude.bconfigs.BuildConfig import BuildConfig, PLDudeError
+from pldude.bconfigs.buildconf import BuildConfig
+from pldude.utils.error import PLDudeError
 import subprocess
 import sys
 import getopt

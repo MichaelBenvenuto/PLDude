@@ -3,3 +3,5 @@
 **/__pycache__
 /pldude.egg-info
 /src
+/tcl_test
+/.Xil

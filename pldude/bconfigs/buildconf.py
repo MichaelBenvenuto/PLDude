@@ -6,6 +6,7 @@ import io
 import shutil
 from typing import Any, IO, Match
 from pldude.utils.error import PLDudeError
+from typing import Union
 import yaml
 import re
 import glob
@@ -14,10 +15,10 @@ import subprocess
 class CustomFormatter(logging.Formatter):
     
     FORMATS = {
-        logging.DEBUG : '\u001b[37m',
+        logging.DEBUG : '\u001b[32m',
         logging.INFO : '\u001b[32m',
-        logging.WARNING : '\u001b[33',
-        logging.ERROR : '\u001b[31',
+        logging.WARNING : '\u001b[33m',
+        logging.ERROR : '\u001b[31m',
         logging.CRITICAL : '\u001b[31m'
     }
     
@@ -25,6 +26,11 @@ class CustomFormatter(logging.Formatter):
         log_fmt = '[' + self.FORMATS.get(record.levelno, '\u001b[0m') + '%(levelname)s\u001b[0m] %(message)s'
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
+
+class RepFile():
+    def __init__(self, dir : str, type : str):
+        self.dir = dir
+        self.type = type
 
 class BuildConfig():
 
@@ -38,6 +44,9 @@ class BuildConfig():
         self._ignore = []
         self._clean = False
         self._subprocesses = []
+        self._remote = None
+
+        self._endargs = {}
 
         self._logging = logging.getLogger()
         ch = logging.StreamHandler()
@@ -46,6 +55,12 @@ class BuildConfig():
         self._logging.addHandler(ch)
 
         self._logging.setLevel(logging.INFO)
+
+    def GetResource(self, resource : str) -> io.TextIOWrapper:
+        return open(self.GetResourceDir(resource))
+
+    def GetResourceDir(self, resource : str) -> str:
+        return "./pldude/resources/" + self.__class__.__name__ + "/" + resource
 
     def LoadConfig(self):
         try:
@@ -66,6 +81,7 @@ class BuildConfig():
         self.src_dir = project.get('src', './src')
         self.vhdl_2008 = project.get('vhdl2008', False)
         self._ignore = project.get('ignore', self._ignore)
+        self._remote = project.get('remote', 'DEFAULT')
 
         key_errors = []
         for key in self.REQUIRED_PROJ_PARAMS:
@@ -74,6 +90,8 @@ class BuildConfig():
 
         if len(key_errors) != 0:
             raise PLDudeError("Missing project parameters: " + ', '.join(key_errors), 1)
+    def GetRemote(self) -> str:
+        raise PLDudeError('Unknown Device! Cannot get remote programming URL!', 2)
 
     def SetCompile(self, val : bool):
         self._compile = val
@@ -107,7 +125,8 @@ class BuildConfig():
     def GetSpecific(self) -> 'BuildConfig':
         if self.device[0:3] == 'XC7':
             self.__class__ = Xilinx7
-            return self
+        elif self.device.upper()[0] == 'E' or self.device[0] == '5' or self.device[0:2] == '10':
+            self.__class__ = Altera
         return self
 
     def GetDirectory(self, module : str) -> str:
@@ -124,16 +143,23 @@ class BuildConfig():
             if not i.poll():
                 i.terminate()
 
-    def RunSubprocess(self, msg : str, cwd : str, args : list):
+    def RunSubprocess(self, msg : str, cwd : str, args : list, block : bool = True, user_input : bool = False):
         self._logging.info(msg)
+        if user_input:
+            proc_stdin = subprocess.PIPE
+        else:
+            proc_stdin = subprocess.DEVNULL
         subproc = subprocess.Popen(
             args,
             cwd=cwd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT
+            stderr=subprocess.STDOUT,
+            stdin=proc_stdin
         )
         self._subprocesses.append(subproc)
-        self.PrintLogs(subproc.stdout)
+        if block:
+            self.PrintLogs(subproc.stdout)
+        return subproc
 
     def run(self):
         if self.mode == "MIXED":
@@ -142,7 +168,16 @@ class BuildConfig():
             glob_dir = self.src_dir + "/**/*[.vhd,.vhdl]"
         elif self.mode == "VERILOG":
             glob_dir = self.src_dir + "/**/*.v"
-        self._files = glob.glob(glob_dir, recursive=True)
+        files = glob.glob(glob_dir, recursive=True)
+        self._files = []
+        for i in files:
+            ext = os.path.splitext(i)[1]
+            path = os.path.abspath(i)
+            if ext in ('.vhd', '.vhdl'):
+                self._files.append(RepFile(path, 'VHDL'))
+            elif ext == '.v':
+                self._files.append(RepFile(path, 'VERILOG'))
+
 
         update = False
         timestamps_yml = {}
@@ -152,50 +187,58 @@ class BuildConfig():
             update = update or (timestamps_yml.get('./pinprj.yml', None) != int(os.path.getmtime('./pinprj.yml')))
             update = update or (timestamps_yml.get('./pldprj.yml', None) != int(os.path.getmtime('./pldprj.yml')))
             for i in self._files:
-                if int(os.path.getmtime(i)) != timestamps_yml.get(i, None):
+                if int(os.path.getmtime(i.dir)) != timestamps_yml.get(i, None):
                     update = True
                     timestamps.close()
                     break
             timestamps.close()
         else:
             update = True
+        try:
+            if self._simulate:
+                self.simulate()
+            else:
+                if self._compile and update:
+                    self.compile()
+                elif self._compile:
+                    self._logging.warning("Skipping synthesis: no changes detected")
 
-        if self._simulate:
-            self.simulate()
-        else:
-            if self._compile and update:
-                self.compile()
-            elif self._compile:
-                self._logging.warning("Skipping synthesis: no changes detected")
+                if self._program:
+                    self.program()
 
-            if self._program:
-                self.program()
+            if self._clean and self._compile and not self._program:
+                self._logging.warning("Skipping clean: compile flag set without program flag")
+            elif self._clean and not self._compile:
+                if not os.path.exists('./gen'):
+                    raise PLDudeError('Nothing to clean', 0, logging.INFO)
+                self._logging.info('Cleaning...')
+                try:
+                    shutil.rmtree('./gen', ignore_errors=True)
+                    sys.exit(0)
+                except OSError as err:
+                    raise PLDudeError(err.strerror, 2)
 
-        if self._clean and self._compile and not self._program:
-            self._logging.warning("Skipping clean: compile flag set without program flag")
-        elif self._clean and not self._compile:
-            if not os.path.exists('./gen'):
-                raise PLDudeError('Nothing to clean', 0, logging.INFO)
-            self._logging.info('Cleaning...')
-            try:
-                shutil.rmtree('./gen', ignore_errors=True)
-                sys.exit(0)
-            except OSError as err:
-                raise PLDudeError(err.strerror, 2)
+        except PLDudeError as err:
+            raise err
+        except Exception as err:
+            self._logging.critical(err)
+            self.Terminate()
+            pass
 
         timestamps_yml.update({
             './pinprj.yml' : int(os.path.getmtime('./pinprj.yml')),
             './pldprj.yml' : int(os.path.getmtime('./pldprj.yml'))
         })
 
-        for i in self._files:
-            timestamps_yml.update({
-                i: int(os.path.getmtime(i))
-            })
+        if self._endargs.get('compile', False):
+            for i in self._files:
+                timestamps_yml.update({
+                    i.dir: int(os.path.getmtime(i.dir))
+                })
 
-        timestamps = open("./gen/timestamp.yml", "w+")
-        yaml.dump(timestamps_yml, timestamps)
-        timestamps.close()
+            timestamps = open("./gen/timestamp.yml", "w+")
+            yaml.dump(timestamps_yml, timestamps)
+            timestamps.close()
 
     def program(self):
         raise PLDudeError("Unknown device! Cannot program!", 3)
@@ -206,9 +249,83 @@ class BuildConfig():
     def simulate(self):
         raise PLDudeError("Unknown device! Cannot simulate", 3)
 
-class Xilinx7(BuildConfig):
+class Device():...
 
-    def PrintLogs(self, logfile : IO[bytes]):
+class Xilinx7Device(Device):
+    def __init__(self, target : str, device : str):
+        self.target = target
+        self.device = device
+
+    def __repr__(self) -> str:
+        if type(self.device) == list:
+            return self.target + " (" + ' '.join(self.device) + ")"
+        elif type(self.device) == str:
+            return self.target + " (" + self.device + ")"
+
+class Xilinx7(BuildConfig):
+    def GetRemote(self) -> str:
+        if self._remote == 'DEFAULT':
+            return 'localhost:3121'
+        return self._remote
+
+    def ListDevices(self) -> Xilinx7Device:
+        program_dir = self.GetDirectory('program')
+        self._logging.info('Getting list of JTAG Devices...')
+
+        hw_devices_prog = subprocess.Popen(
+            ['vivado.bat', '-mode', 'tcl'],
+            cwd = program_dir,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.PIPE
+        )
+
+        scan_for_devices = self.GetResource("scan_for_devices.tcl")
+        hw_devices_prog.stdin.write(b'open_hw\n')
+        hw_devices_prog.stdin.write(b'connect_hw_server -url ' + self.GetRemote().encode() + b'\n')
+        hw_devices_prog.stdin.write(scan_for_devices.read().encode())
+        scan_for_devices.close()
+
+        output_prog = hw_devices_prog.communicate()[0].decode()
+
+        devices = None
+        for i in output_prog.split('\r\n'):
+            match = re.match("PLDUDE:(.*)", i)
+            if match:
+                if match.group(1) == 'BEGIN':
+                    devices = []
+                elif match.group(1) == 'END':
+                    break
+            elif type(devices) == list:
+                params = i.split(' ')
+                devices.append(Xilinx7Device(params[0], params[1:]))
+
+        if len(devices) > 1:
+            print('Select a target:')
+            for i in range(0, len(devices)):
+                print('\t[' + str(i) + ']: ' + str(devices[i]))
+
+            target = int(input('> '))
+        elif len(devices) == 1:
+            target = 0
+            self._logging.info('Singular target found, selecting ' + str(devices[0]))
+        else:
+            raise PLDudeError('No targets found', 0, logging.WARNING)
+
+        if len(devices[target].device) > 1:
+            print('Select a device:')
+            for i in range(0, len(devices[target].device)):
+                print('\t[' + str(i) + ']: ' + str(devices[target].device[i]))
+
+            device = int(input('> '))
+        elif len(devices[target].device) == 1:
+            device = 0
+            self._logging.info('Singular device found, selecting ' + str(devices[target].device[0]))
+
+        devices[target].device = devices[target].device[device]
+        return devices[target]
+
+    def PrintLogs(self, logfile : Union[IO[bytes], list]):
         exit = False
         for i in logfile:
             vivado_match = re.match("(INFO|WARNING|ERROR|CRITICAL): \[(.*)] (.*)", i.decode())
@@ -221,7 +338,7 @@ class Xilinx7(BuildConfig):
                 if match and vivado_match.group(1) == 'WARNING':
                     continue
                 
-                vivado_param = '[\u001b[30;1m' + vivado_match.group(2) + '\u001b[0m] '
+                vivado_param = '[\u001b[34m' + vivado_match.group(2) + '\u001b[0m] '
                 # bring tool info level messages downto debug for PLDude
                 if vivado_match.group(1) == 'INFO':
                     self._logging.debug(vivado_param + vivado_match.group(3))
@@ -243,7 +360,7 @@ class Xilinx7(BuildConfig):
             xilinx7_synthfile.write("set_property enable_vhdl_2008 1 [current_project]\n")
 
         for i in self._files:
-            file_ext = os.path.splitext(i)
+            file_ext = os.path.splitext(i.dir)
             if len(file_ext) < 2:
                 continue
 
@@ -251,9 +368,9 @@ class Xilinx7(BuildConfig):
                 file_args = ""
                 if self.vhdl_2008:
                     file_args = '-vhdl2008 '
-                xilinx7_synthfile.write("read_vhdl " + file_args + "../../../" + str(i).replace('\\', '/') + "\n")
+                xilinx7_synthfile.write("read_vhdl " + file_args + "../../../" + str(i.dir).replace('\\', '/') + "\n")
             elif file_ext[1] in (".v"):
-                xilinx7_synthfile.write("read_verilog ../../../" + str(i).replace('\\', '/') + "\n")
+                xilinx7_synthfile.write("read_verilog ../../../" + str(i.dir).replace('\\', '/') + "\n")
 
         self._logging.info("Configuring synthesis...")
 
@@ -294,8 +411,36 @@ class Xilinx7(BuildConfig):
         self.RunSubprocess("Executing place and route...", compile_dir, ['vivado.bat', '-mode', 'batch', '-source', './par.tcl'])
         self.RunSubprocess("Executing bitstream generation...", compile_dir, ['vivado.bat', '-mode', 'batch', '-source', './bit.tcl'])
 
+        self._endargs.update({
+            'compile': True
+        })
+
     def program(self):
-        pass
+        program_dir = self.GetDirectory('program')
+        hw_server_prog = self.RunSubprocess('Starting JTAG hardware server...', program_dir, ['hw_server.bat'], False)
+
+        device = self.ListDevices()
+
+        if not os.path.exists(self.GetDirectory('compile/bitfile') + '/project.bit'):
+            self.compile()
+
+        hw_client_prog = self.RunSubprocess('Programming device...', program_dir, ['vivado.bat', '-mode', 'tcl'], False, True)
+
+        hw_client_prog.stdin.write(b'open_hw\n')
+        hw_client_prog.stdin.write(b'connect_hw_server -url ' + self.GetRemote().encode() + b'\n')
+        hw_client_prog.stdin.write(b'current_hw_target ' + device.target.encode() + b'\n')
+        hw_client_prog.stdin.write(b'open_hw_target\n')
+        hw_client_prog.stdin.write(b'current_hw_device [get_hw_devices -of_objects [current_hw_target]]\n')
+        hw_client_prog.stdin.write(b'set_property PROGRAM.FILE {../compile/bitfile/project.bit} [current_hw_device]\n')
+        hw_client_prog.stdin.write(b'program_hw_devices [current_hw_device]\n')
+
+        self.PrintLogs(hw_client_prog.communicate()[0].split(b'\r\n'))
+
+        hw_client_prog.terminate()
+        hw_server_prog.terminate()
+        self._endargs.update({
+            'program': True
+        })
         
     def simulate(self):
         sim_dir = self.GetDirectory("simulation")
@@ -303,11 +448,11 @@ class Xilinx7(BuildConfig):
         self._logging.info("Writing simulation project file...")
 
         for i in self._files:
-            file_ext = os.path.splitext(i)
+            file_ext = os.path.splitext(i.dir)
             if len(file_ext) < 2:
                 continue
 
-            file_line = "work ../../../" + str(i).replace('\\', '/') + "\n"
+            file_line = "work ../../../" + str(i.dir).replace('\\', '/') + "\n"
             if file_ext[1] in (".vhd", ".vhdl"):
                 if self.vhdl_2008:
                     file_line = "vhdl2008 " + file_line
@@ -337,3 +482,65 @@ class Xilinx7(BuildConfig):
             stdin=subprocess.DEVNULL,
             creationflags= subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
         )
+        self._endargs.update({
+            'simulate': True
+        })
+
+class AlteraDevice(Device):...
+
+class Altera(BuildConfig):
+    def PrintLogs(self, logfile : Union[IO[bytes], list]):
+        regex = re.compile('^(Info|(?:Critical )?Warning|Error|Critical)[:]? (?:\\((.*)\\): )?(.*)')
+        exit = False
+        for i in logfile:
+            m = regex.match(i.decode())
+            if m:
+                altera_param = ''
+                if m.group(2):
+                    altera_param = '[\u001b[34m' + m.group(2) + '\u001b[0m] '
+                if m.group(1) == 'Info':
+                    if m.group(3)[0:5] != '*****':
+                        self._logging.debug(altera_param + m.group(3))
+                    continue
+                elif m.group(1) == 'Critical Warning':
+                    self._logging.warning(altera_param + m.group(3))
+                    continue
+                exit = exit or m.group(1).upper() in ('ERROR', 'CRITICAL')
+                getattr(self._logging, m.group(1).lower())(altera_param + m.group(3))
+        
+        if exit:
+            sys.exit(2)
+
+    def compile(self):
+        compile_dir = self.GetDirectory('compile')
+        bitfile_dir = self.GetDirectory('compile/bitfile')
+
+        pins = ['quartus_sh', '-t', os.path.abspath(self.GetResourceDir('qsf.tcl')), self.device, self.top]
+        altera_pconf = self.pinconf.get(self.__class__.__name__, None)
+        if altera_pconf == None:
+            raise PLDudeError('Pin configuration does not exist for ' + self.__class__.__name__, 2)
+        for i in self.pinconf[self.__class__.__name__].items():
+            data = 'IO;' + i[0] + ';'
+            if type(i[1]) == dict:
+                data += ';'.join(i.items()[0])
+            elif type(i[1]) == str:
+                data += i[1] + ';LVCMOS'
+            else:
+                raise PLDudeError('Unknown type!', 2)
+            pins.append(data)
+
+        for i in self._files:
+            pins.append("FILE;" + i.type.upper() + ';' + i.dir)
+
+        self.RunSubprocess('Creating quartus project...', compile_dir, pins)
+        self.RunSubprocess('Executing synthesis...', compile_dir, ['quartus_map', 'project'])
+        self.RunSubprocess('Executing fitter...', compile_dir, ['quartus_fit', 'project'])
+        self.RunSubprocess('Executing assembler...', compile_dir, ['quartus_asm', 'project'])
+
+        if os.path.exists(bitfile_dir + '/project.sof'):
+            os.remove(bitfile_dir + '/project.sof')
+        os.rename(compile_dir + '/project.sof', bitfile_dir + '/project.sof')
+
+    def program(self):
+        bitfile_dir = self.GetDirectory('compile/bitfile')
+        self.RunSubprocess('Executing programmer...', bitfile_dir, ['quartus_pgm', '-m', 'JTAG', '-o', 'p;./project.sof'])
