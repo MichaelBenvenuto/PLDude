@@ -48,6 +48,7 @@ class BuildConfig(ResourceManager):
         self._clean = False
         self._subprocesses = []
         self._remote = None
+        self._platform_dir = None
 
         self._endargs = {}
 
@@ -79,6 +80,7 @@ class BuildConfig(ResourceManager):
         self.vhdl_2008 = project.get('vhdl2008', False)
         self._ignore = project.get('ignore', self._ignore)
         self._remote = project.get('remote', 'DEFAULT')
+        self._platform_dir = project.get('platform_src', self._platform_dir)
 
         key_errors = []
         for key in self.REQUIRED_PROJ_PARAMS:
@@ -160,12 +162,19 @@ class BuildConfig(ResourceManager):
 
     def run(self):
         if self.mode == "MIXED":
-            glob_dir = self.src_dir + "/**/*[.vhd,.vhdl,.v]"
+            glob_ext = "/**/*[.vhd,.vhdl,.v]"
         elif self.mode == "VHDL":
-            glob_dir = self.src_dir + "/**/*[.vhd,.vhdl]"
+            glob_ext = "/**/*[.vhd,.vhdl]"
         elif self.mode == "VERILOG":
-            glob_dir = self.src_dir + "/**/*.v"
+            glob_ext = "/**/*.v"
+        else:
+            raise PLDudeError("Unknown file type: " + self.mode, 2)
+        glob_dir = self.src_dir + glob_ext
         files = glob.glob(glob_dir, recursive=True)
+
+        if self._platform_dir:
+            files.extend(glob.glob(self._platform_dir + "/" + self.__class__.__name__ + glob_ext))
+
         self._files = []
         for i in files:
             ext = os.path.splitext(i)[1]
@@ -449,7 +458,7 @@ class Xilinx7(BuildConfig):
             if len(file_ext) < 2:
                 continue
 
-            file_line = "work ../../../" + str(i.dir).replace('\\', '/') + "\n"
+            file_line = "work " + str(i.dir).replace('\\', '/') + "\n"
             if file_ext[1] in (".vhd", ".vhdl"):
                 if self.vhdl_2008:
                     file_line = "vhdl2008 " + file_line
@@ -459,6 +468,7 @@ class Xilinx7(BuildConfig):
                 file_line = "verilog " + file_line
 
             sim_file.write(file_line)
+
 
         sim_file.close()
 
@@ -519,12 +529,11 @@ class Altera(BuildConfig):
         for i in self.pinconf[self.__class__.__name__].items():
             data = 'IO;' + i[0] + ';'
             if type(i[1]) == dict:
-                data += ';'.join(i.items()[0])
+                data += ';'.join(list(i[1].values()))
             elif type(i[1]) == str:
                 data += i[1] + ';LVCMOS'
             else:
                 raise PLDudeError('Unknown type!', 2)
-            pins.append(data)
 
         for i in self._files:
             pins.append("FILE;" + i.type.upper() + ';' + i.dir)
