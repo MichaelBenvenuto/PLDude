@@ -226,10 +226,6 @@ class BuildConfig(ResourceManager):
 
         except PLDudeError as err:
             raise err
-        except Exception as err:
-            self._logging.critical(err)
-            self.Terminate()
-            pass
 
         timestamps_yml.update({
             os.path.abspath('./pinprj.yml') : int(os.path.getmtime('./pinprj.yml')),
@@ -374,9 +370,9 @@ class Xilinx7(BuildConfig):
                 file_args = ""
                 if self.vhdl_2008:
                     file_args = '-vhdl2008 '
-                xilinx7_synthfile.write("read_vhdl " + file_args + "../../../" + str(i.dir).replace('\\', '/') + "\n")
+                xilinx7_synthfile.write("read_vhdl " + file_args + str(i.dir).replace('\\', '/') + "\n")
             elif file_ext[1] in (".v"):
-                xilinx7_synthfile.write("read_verilog ../../../" + str(i.dir).replace('\\', '/') + "\n")
+                xilinx7_synthfile.write("read_verilog " + str(i.dir).replace('\\', '/') + "\n")
 
         self._logging.info("Configuring synthesis...")
 
@@ -486,9 +482,9 @@ class Xilinx7(BuildConfig):
             cwd = sim_dir,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            stdin=subprocess.DEVNULL,
-            creationflags= subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+            stdin=subprocess.DEVNULL
         )
+        isim_prog.wait()
         self._endargs.update({
             'simulate': True
         })
