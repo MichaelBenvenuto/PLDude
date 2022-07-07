@@ -9,13 +9,13 @@ import re
 import glob
 import subprocess
 
-from typing import Any, IO, Match
+from typing import Any, IO, Match, List
 from pldude.utils.error import PLDudeError
 from typing import Union
 from genericpath import getmtime
 from pldude.resources import ResourceManager
 
-class CustomFormatter(logging.Formatter):
+class ConsoleFormatter(logging.Formatter):
     
     FORMATS = {
         logging.DEBUG : '\u001b[32m',
@@ -26,7 +26,19 @@ class CustomFormatter(logging.Formatter):
     }
     
     def format(self, record : logging.LogRecord):
-        log_fmt = '[' + self.FORMATS.get(record.levelno, '\u001b[0m') + '%(levelname)s\u001b[0m] %(message)s'
+        log_fmt = '[' + self.FORMATS.get(record.levelno, '\u001b[0m') + '%(levelname)s\u001b[0m]'
+        if record.__dict__.get('synth_param', None) != None:
+            log_fmt += '[\u001b[94m%(synth_param)s\u001b[0m]'
+        log_fmt += ' %(message)s'
+        formatter = logging.Formatter(log_fmt)
+        return formatter.format(record)
+
+class FileFormatter(logging.Formatter):
+    def format(self, record : logging.LogRecord):
+        log_fmt = '%(asctime)s - %(levelname)s - '
+        if record.__dict__.get('synth_param', None) != None:
+            log_fmt += '(%(synth_param)s) - '
+        log_fmt += '%(message)s'
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
 
@@ -55,8 +67,17 @@ class BuildConfig(ResourceManager):
         self._logging = logging.getLogger()
         ch = logging.StreamHandler()
         ch.setLevel(logging.DEBUG)
-        ch.setFormatter(CustomFormatter())
+        ch.setFormatter(ConsoleFormatter())
+
+        if not os.path.exists('./logs'):
+            os.mkdir('./logs')
+
+        fh = logging.FileHandler('./logs/pldude.log', 'w+')
+        fh.setLevel(logging.DEBUG)
+        fh.setFormatter(FileFormatter())
+
         self._logging.addHandler(ch)
+        self._logging.addHandler(fh)
 
         self._logging.setLevel(logging.INFO)
 
@@ -134,7 +155,7 @@ class BuildConfig(ResourceManager):
             os.makedirs(directory)
         return directory
 
-    def PrintLogs(self, logfile : IO[bytes]):
+    def PrintLogs(self, logfile : IO[bytes], logger : logging.Logger = None):
         pass
 
     def Terminate(self):
@@ -142,7 +163,7 @@ class BuildConfig(ResourceManager):
             if not i.poll():
                 i.terminate()
 
-    def RunSubprocess(self, msg : str, cwd : str, args : list, block : bool = True, user_input : bool = False):
+    def RunSubprocess(self, msg : str, cwd : str, args : List[str], block : bool = True, user_input : bool = False, run : str = None):
         self._logging.info(msg)
         if user_input:
             proc_stdin = subprocess.PIPE
@@ -157,7 +178,20 @@ class BuildConfig(ResourceManager):
         )
         self._subprocesses.append(subproc)
         if block:
-            self.PrintLogs(subproc.stdout)
+
+            logger = logging.Logger(args[0], logging.INFO)
+            if not os.path.exists(f'./logs/{self.__class__.__name__}'):
+                os.mkdir(f'./logs/{self.__class__.__name__}')
+
+            if run != None:
+                dir = f'./logs/{self.__class__.__name__}/{run}-{args[0]}.log'
+            else:
+                dir = f'./logs/{self.__class__.__name__}/{args[0]}.log'
+            fh = logging.FileHandler(dir, 'w+')
+            fh.setFormatter(FileFormatter())
+            logger.addHandler(fh)
+
+            self.PrintLogs(subproc.stdout, logger)
         return subproc
 
     def run(self):
@@ -327,7 +361,7 @@ class Xilinx7(BuildConfig):
         devices[target].device = devices[target].device[device]
         return devices[target]
 
-    def PrintLogs(self, logfile : Union[IO[bytes], list]):
+    def PrintLogs(self, logfile : Union[IO[bytes], list], logger : logging.Logger = None):
         exit = False
         for i in logfile:
             vivado_match = re.match("(INFO|WARNING|ERROR|CRITICAL): \[(.*)] (.*)", i.decode())
@@ -340,13 +374,16 @@ class Xilinx7(BuildConfig):
                 if match and vivado_match.group(1) == 'WARNING':
                     continue
                 
-                vivado_param = '[\u001b[94m' + vivado_match.group(2) + '\u001b[0m] '
+                vivado_param = vivado_match.group(2)
                 # bring tool info level messages downto debug for PLDude
+                getattr(logger, vivado_match.group(1).lower())(vivado_match.group(3).strip(), extra={'synth_param' : vivado_param})
                 if vivado_match.group(1) == 'INFO':
-                    self._logging.debug(vivado_param + vivado_match.group(3))
+                    self._logging.debug(vivado_match.group(3), extra={'synth_param' : vivado_param})
                 else:
                     exit = exit or vivado_match.group(1) in ('ERROR', 'CRITICAL')
-                    getattr(self._logging, vivado_match.group(1).lower())(vivado_param + vivado_match.group(3))
+
+                    # Used to get respective logging function from logger
+                    getattr(self._logging, vivado_match.group(1).lower())(vivado_match.group(3).strip(), extra={'synth_param' : vivado_param})
         if exit:
             sys.exit(2)
 
@@ -409,9 +446,9 @@ class Xilinx7(BuildConfig):
                 xilinx7_xstfile.write("set_property -dict { PACKAGE_PIN " + str(i[1]['pkg']) + " IOSTANDARD " + str(i[1]['iostd']) + " } [get_ports { " + str(i[0]) + " }];\n")
         xilinx7_xstfile.close()
 
-        self.RunSubprocess("Executing synthesis...", compile_dir, ['vivado.bat', '-mode', 'batch', '-source', './synth.tcl'])
-        self.RunSubprocess("Executing place and route...", compile_dir, ['vivado.bat', '-mode', 'batch', '-source', './par.tcl'])
-        self.RunSubprocess("Executing bitstream generation...", compile_dir, ['vivado.bat', '-mode', 'batch', '-source', './bit.tcl'])
+        self.RunSubprocess("Executing synthesis...", compile_dir, ['vivado.bat', '-mode', 'batch', '-source', './synth.tcl'], run='synth')
+        self.RunSubprocess("Executing place and route...", compile_dir, ['vivado.bat', '-mode', 'batch', '-source', './par.tcl'], run='par')
+        self.RunSubprocess("Executing bitstream generation...", compile_dir, ['vivado.bat', '-mode', 'batch', '-source', './bit.tcl'], run='bit')
 
         self._endargs.update({
             'compile': True
@@ -426,7 +463,7 @@ class Xilinx7(BuildConfig):
         if not os.path.exists(self.GetDirectory('compile/bitfile') + '/project.bit'):
             self.compile()
 
-        hw_client_prog = self.RunSubprocess('Programming device...', program_dir, ['vivado.bat', '-mode', 'tcl'], False, True)
+        hw_client_prog = self.RunSubprocess('Programming device...', program_dir, ['vivado.bat', '-mode', 'tcl'], False, True, run='prog')
 
         hw_client_prog.stdin.write(b'open_hw\n')
         hw_client_prog.stdin.write(b'connect_hw_server -url ' + self.GetRemote().encode() + b'\n')
@@ -492,24 +529,29 @@ class Xilinx7(BuildConfig):
 class AlteraDevice(Device):...
 
 class Altera(BuildConfig):
-    def PrintLogs(self, logfile : Union[IO[bytes], list]):
+    def PrintLogs(self, logfile : Union[IO[bytes], list], logger : logging.Logger = None):
         regex = re.compile('^(Info|(?:Critical )?Warning|Error|Critical)[:]? (?:\\((.*)\\): )?(.*)')
         exit = False
         for i in logfile:
             m = regex.match(i.decode())
             if m:
-                altera_param = ''
+                altera_param = None
+                altera_func = m.group(1).lower()
+                file_func = altera_func
                 if m.group(2):
-                    altera_param = '[\u001b[94m' + m.group(2) + '\u001b[0m] '
+                    altera_param = m.group(2)
+
                 if m.group(1) == 'Info':
                     if m.group(3)[0:5] != '*****':
-                        self._logging.debug(altera_param + m.group(3))
-                    continue
+                        altera_func = 'debug'
+                    else:
+                        continue
                 elif m.group(1) == 'Critical Warning':
-                    self._logging.warning(altera_param + m.group(3))
-                    continue
+                    altera_func = 'warning'
+                    file_func = altera_func
                 exit = exit or m.group(1).upper() in ('ERROR', 'CRITICAL')
-                getattr(self._logging, m.group(1).lower())(altera_param + m.group(3))
+                getattr(logger, file_func)(m.group(3).strip(), extra={'synth_param' : altera_param})
+                getattr(self._logging, altera_func)(m.group(3), extra={'synth_param' : altera_param})
         
         if exit:
             sys.exit(2)
