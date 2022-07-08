@@ -51,6 +51,8 @@ class BuildConfig(ResourceManager):
 
     REQUIRED_PROJ_PARAMS = ('device', 'top')
 
+    _files : List[RepFile]
+
     def __init__(self):
         self._compile = False
         self._program = False
@@ -154,6 +156,41 @@ class BuildConfig(ResourceManager):
         if not os.path.exists(directory):
             os.makedirs(directory)
         return directory
+
+    def GetTCLPins(self, default_io_std : str) -> List[str]:
+        pins = self.pinconf.get(self.__class__.__name__, {})
+        pins_out = []
+
+        pin_errs = []
+
+        for name, val in pins.items():
+            pin_str = '\"IO;'
+            if type(val) == dict:
+                pin_pkg = val.get('pkg', None)
+                pin_std = val.get('iostd', None)
+
+                if pin_pkg == None or pin_std == None:
+                    pin_errs.append(name)
+                    continue
+
+                pin_str += f'{name};{pin_pkg};{pin_std}'
+            elif type(val) == str:
+                pin_str += f'{name};{val};{default_io_std}'
+            pin_str += '\"'
+            pins_out.append(pin_str)
+
+        if len(pin_errs) > 0:
+            pin_errs_str = ', '.join(pin_errs)
+            raise PLDudeError(f'Must specify both \'pkg\' and \'iostd\' in pinprj.yml for {pin_errs_str}', 4)
+
+        return pins_out
+
+    def GetTCLFiles(self) -> List[str]:
+        files = []
+        for i in self._files:
+            newdir = i.dir.replace('\\', '/')
+            files.append(f"\"FILE;{i.type.upper()};{newdir}\"")
+        return files
 
     def PrintLogs(self, logfile : IO[bytes], logger : logging.Logger = None):
         pass
@@ -364,7 +401,7 @@ class Xilinx7(BuildConfig):
     def PrintLogs(self, logfile : Union[IO[bytes], list], logger : logging.Logger = None):
         exit = False
         for i in logfile:
-            vivado_match = re.match("(INFO|WARNING|ERROR|CRITICAL): \[(.*)] (.*)", i.decode())
+            vivado_match = re.match("(PLDUDE|INFO|WARNING|ERROR|CRITICAL): (?:\[(.*)] )?(.*)", i.decode())
             if vivado_match:
                 match = False
                 for x in self._ignore:
@@ -376,79 +413,31 @@ class Xilinx7(BuildConfig):
                 
                 vivado_param = vivado_match.group(2)
                 # bring tool info level messages downto debug for PLDude
-                getattr(logger, vivado_match.group(1).lower())(vivado_match.group(3).strip(), extra={'synth_param' : vivado_param})
                 if vivado_match.group(1) == 'INFO':
-                    self._logging.debug(vivado_match.group(3), extra={'synth_param' : vivado_param})
+                    getattr(logger, vivado_match.group(1).lower())(vivado_match.group(3).strip(), extra={'synth_param' : vivado_param})
+                    self._logging.debug(vivado_match.group(3).strip(), extra={'synth_param' : vivado_param})
+                elif vivado_match.group(1) == 'PLDUDE':
+                    self._logging.info(vivado_match.group(3).strip())
                 else:
                     exit = exit or vivado_match.group(1) in ('ERROR', 'CRITICAL')
 
                     # Used to get respective logging function from logger
+                    getattr(logger, vivado_match.group(1).lower())(vivado_match.group(3).strip(), extra={'synth_param' : vivado_param})
                     getattr(self._logging, vivado_match.group(1).lower())(vivado_match.group(3).strip(), extra={'synth_param' : vivado_param})
         if exit:
             sys.exit(2)
 
     def compile(self):
         compile_dir = self.GetDirectory("compile")
-        bitfile_dir = self.GetDirectory("compile/bitfile")
 
-        xilinx7_synthfile = open(compile_dir + "/synth.tcl", "w+")
-        self._logging.info("Writing to TCL script...")
+        comp_args = ['vivado.bat', '-mode', 'batch', '-source', self.GetResourceDir('comp.tcl'), '-tclargs', self.device, self.top, str(self.vhdl_2008)]
+        comp_args.extend(self.GetTCLFiles())
+        comp_args.extend(self.GetTCLPins('LVCMOS33'))
 
-        xilinx7_synthfile.write("create_project -in_memory -part \"" + self.device + "\"\n")
-        if self.vhdl_2008:
-            xilinx7_synthfile.write("set_property enable_vhdl_2008 1 [current_project]\n")
-
-        for i in self._files:
-            file_ext = os.path.splitext(i.dir)
-            if len(file_ext) < 2:
-                continue
-
-            if file_ext[1] in (".vhd", ".vhdl"):
-                file_args = ""
-                if self.vhdl_2008:
-                    file_args = '-vhdl2008 '
-                xilinx7_synthfile.write("read_vhdl " + file_args + str(i.dir).replace('\\', '/') + "\n")
-            elif file_ext[1] in (".v"):
-                xilinx7_synthfile.write("read_verilog " + str(i.dir).replace('\\', '/') + "\n")
-
-        self._logging.info("Configuring synthesis...")
-
-        xilinx7_synthfile.write("synth_design -flatten_hierarchy none -top " + self.top + " -part " + self.device + "\n")
-        xilinx7_synthfile.write("opt_design -retarget -propconst -bram_power_opt -verbose\n")
-        xilinx7_synthfile.write("write_checkpoint -incremental_synth -force ./post_synth.dcp\n")
-
-        xilinx7_synthfile.close()
-
-        self._logging.info("Configuring place and route...")
-        xilinx7_parfile = open(compile_dir + "/par.tcl", "w+")
-        xilinx7_parfile.write("open_checkpoint ./post_synth.dcp\n")
-        xilinx7_parfile.write("read_xdc ./pins.xdc\n")
-        xilinx7_parfile.write("place_design\n")
-        xilinx7_parfile.write("route_design -directive Explore\n")
-        xilinx7_parfile.write("write_checkpoint -force ./post_par.dcp\n")
-
-        xilinx7_parfile.close()
-
-        self._logging.info("Configuring bitstream write...")
-        xilinx7_bitfile = open(compile_dir + "/bit.tcl", "w+")
-        xilinx7_bitfile.write("open_checkpoint ./post_par.dcp\n")
-        xilinx7_bitfile.write("write_bitstream -force ./bitfile/project.bit\n")
-        xilinx7_bitfile.close()
-
-        self._logging.info("Generating XDC file...")
-        xilinx7_xstfile = open(compile_dir + "/pins.xdc", "w+")
-        xilinx7_xstfile.write('set_property CFGBVS VCCO [current_design];\n')
-        xilinx7_xstfile.write('set_property CONFIG_VOLTAGE 3.3 [current_design];\n')
-        for i in self.pinconf.get('Xilinx7').items():
-            if type(i[1]) == str:
-                xilinx7_xstfile.write("set_property -dict { PACKAGE_PIN " + str(i[1]) + " IOSTANDARD LVCMOS33 } [get_ports { " + str(i[0]) + " }];\n")
-            elif type(i[1]) == dict:
-                xilinx7_xstfile.write("set_property -dict { PACKAGE_PIN " + str(i[1]['pkg']) + " IOSTANDARD " + str(i[1]['iostd']) + " } [get_ports { " + str(i[0]) + " }];\n")
-        xilinx7_xstfile.close()
-
-        self.RunSubprocess("Executing synthesis...", compile_dir, ['vivado.bat', '-mode', 'batch', '-source', './synth.tcl'], run='synth')
-        self.RunSubprocess("Executing place and route...", compile_dir, ['vivado.bat', '-mode', 'batch', '-source', './par.tcl'], run='par')
-        self.RunSubprocess("Executing bitstream generation...", compile_dir, ['vivado.bat', '-mode', 'batch', '-source', './bit.tcl'], run='bit')
+        if not os.path.exists(self.GetDirectory('compile/bitfile')):
+            os.mkdir(self.GetDirectory('compile/bitfile'))
+        
+        self.RunSubprocess("Executing Vivado run...", compile_dir, comp_args, run='comp')
 
         self._endargs.update({
             'compile': True
@@ -545,6 +534,7 @@ class Altera(BuildConfig):
                     if m.group(3)[0:5] != '*****':
                         altera_func = 'debug'
                     else:
+                        logger.info(m.group(3).strip())
                         continue
                 elif m.group(1) == 'Critical Warning':
                     altera_func = 'warning'
@@ -564,17 +554,9 @@ class Altera(BuildConfig):
         altera_pconf = self.pinconf.get(self.__class__.__name__, None)
         if altera_pconf == None:
             raise PLDudeError('Pin configuration does not exist for ' + self.__class__.__name__, 2)
-        for i in self.pinconf[self.__class__.__name__].items():
-            data = 'IO;' + i[0] + ';'
-            if type(i[1]) == dict:
-                data += ';'.join(list(i[1].values()))
-            elif type(i[1]) == str:
-                data += i[1] + ';LVCMOS'
-            else:
-                raise PLDudeError('Unknown type!', 2)
 
-        for i in self._files:
-            pins.append("FILE;" + i.type.upper() + ';' + i.dir)
+        pins.extend(self.GetTCLFiles())
+        pins.extend(self.GetTCLPins('LVCMOS'))
 
         self.RunSubprocess('Creating quartus project...', compile_dir, pins)
         self.RunSubprocess('Executing synthesis...', compile_dir, ['quartus_map', 'project'])
