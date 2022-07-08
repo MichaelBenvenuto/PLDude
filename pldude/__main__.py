@@ -30,46 +30,45 @@ Options:
 
 def main():
     try:
-        try:
-            print(splash)
+        print(splash)
 
-            if len(sys.argv[1:]) == 0:
+        if len(sys.argv[1:]) == 0:
+            print(usage)
+            sys.exit(0)
+
+        try:
+            arg, opt = getopt.getopt(sys.argv[1:], "cpv:s:hx", ['compile', 'program', 'verbosity=', 'simulate=', 'help', 'clean'])
+        except getopt.GetoptError as err:
+            print(err)
+            print(usage)
+            sys.exit(2)
+
+        bconf = BuildConfig()
+        for o, a in arg:
+            if o in ('-c', '--compile'):
+                bconf.SetCompile(True)
+            elif o in ('-p', '--program'):
+                bconf.SetProgram(True)
+            elif o in ('-v', '--verbosity'):
+                bconf.SetVerbosity(a)
+            elif o in ('-s', '--simulate'):
+                bconf.SetSimulate(True, a)
+            elif o in ('-x', '--clean'):
+                bconf.Clean(True)
+            elif o in ('-h', '--help'):
                 print(usage)
                 sys.exit(0)
 
-            try:
-                arg, opt = getopt.getopt(sys.argv[1:], "cpv:s:hx", ['compile', 'program', 'verbosity=', 'simulate=', 'help', 'clean'])
-            except getopt.GetoptError as err:
-                print(err)
-                print(usage)
-                sys.exit(2)
+        bconf.LoadConfig()
 
-            bconf = BuildConfig()
-            for o, a in arg:
-                if o in ('-c', '--compile'):
-                    bconf.SetCompile(True)
-                elif o in ('-p', '--program'):
-                    bconf.SetProgram(True)
-                elif o in ('-v', '--verbosity'):
-                    bconf.SetVerbosity(a)
-                elif o in ('-s', '--simulate'):
-                    bconf.SetSimulate(True, a)
-                elif o in ('-x', '--clean'):
-                    bconf.Clean(True)
-                elif o in ('-h', '--help'):
-                    print(usage)
-                    sys.exit(0)
-
-            bconf.LoadConfig()
-
-            bconf.GetSpecific().run()
-        except PLDudeError as err:
-            bconf._logging.log(err.level, err.reason)
-            sys.exit(err.ecode)
+        bconf.GetSpecific().run()
     except KeyboardInterrupt:
         bconf._logging.warning("User termination")
         bconf.Terminate()
         sys.exit(0)
+    except PLDudeError as err:
+            bconf._logging.log(err.level, err.reason)
+            sys.exit(err.ecode)
 
 if __name__ == '__main__':
     main()
