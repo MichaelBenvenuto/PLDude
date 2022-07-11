@@ -5,6 +5,7 @@ import yaml
 import glob
 import shutil
 import subprocess
+import difflib
 
 from typing import Any, IO, List
 
@@ -111,11 +112,18 @@ class BuildConfig(ResourceManager):
     def GetSpecific(self) -> 'BuildConfig':
         from . import Xilinx7
         from . import Altera
-        if self.device[0:3] == 'XC7':
-            self.__class__ = Xilinx7
-        elif self.device.upper()[0] == 'E' or self.device[0] == '5' or self.device[0:2] == '10':
+
+        if shutil.which('quartus_sh') != None:
             self.__class__ = Altera
-        return self
+            if self.CheckPart(self.device.upper()):
+                return self
+
+        if shutil.which('vivado.bat') != None:
+            self.__class__ = Xilinx7
+            if self.CheckPart(self.device.lower()):
+                return self
+
+        raise PLDudeError(f'Device \'{self.device.lower()}\' was not found in any tools...', 3)
 
     def GetDirectory(self, module : str) -> str:
         directory =  "./gen/" + self.__class__.__name__ + "/" + module
@@ -278,6 +286,20 @@ class BuildConfig(ResourceManager):
             timestamps = open("./gen/timestamp.yml", "w+")
             yaml.dump(timestamps_yml, timestamps)
             timestamps.close()
+
+    def _CheckPartCmd(self) -> List[str]:
+        return []
+
+    def CheckPart(self, part : str) -> bool:
+        part_listing = self._CheckPartCmd()
+        possible_part = difflib.get_close_matches(part, part_listing, n=1)
+        if len(possible_part) == 0:
+            return False
+
+        if possible_part[0] != part:
+            raise PLDudeError(f'Part \'{part}\' could not be found (did you mean \'{possible_part[0]}\'?)', 2)
+
+        return True
 
     def program(self):
         raise PLDudeError("Unknown device! Cannot program!", 3)

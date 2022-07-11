@@ -21,6 +21,30 @@ class Xilinx7Device(Device):
             return self.target + " (" + self.device + ")"
 
 class Xilinx7(BuildConfig):
+    def _CheckPartCmd(self):
+        subproc = subprocess.Popen(
+            args=['vivado.bat', '-nolog', '-nojournal', '-mode', 'batch', '-source', self.GetResourceDir('partlist.tcl')],
+            cwd='./gen',
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL
+        )
+
+        out = subproc.stdout.read().decode().split('\r\n')
+
+        output = None
+        for i in out:
+            match = re.match('PLDUDE:(.*)', i)
+            if match:
+                if match.group(1) == 'BEGIN':
+                    output = []
+                elif match.group(1) == 'END':
+                    break
+            elif output != None:
+                output.append(i)
+
+        return output[1:-1][0].split(' ')
+
     def GetRemote(self) -> str:
         if self._remote == 'DEFAULT':
             return 'localhost:3121'
@@ -203,6 +227,19 @@ class Xilinx7(BuildConfig):
 class AlteraDevice(Device):...
 
 class Altera(BuildConfig):
+
+    def _CheckPartCmd(self):
+        subproc = subprocess.Popen(
+            args=['quartus_sh', '--tcl_eval', 'get_part_list'],
+            cwd='./gen',
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL
+        )
+
+        return subproc.stdout.read().decode().split(' ')
+
+
     def PrintLogs(self, logfile : Union[IO[bytes], list], logger : logging.Logger = None):
         regex = re.compile('^(Info|(?:Critical )?Warning|Error|Critical)[:]? (?:\\((.*)\\): )?(.*)')
         exit = False
