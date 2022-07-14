@@ -1,4 +1,9 @@
+import os
+import sys
+import importlib
 import logging
+import pkgutil
+from types import ModuleType
 
 class PLDudeError(Exception):
     def __init__(self, err : str, exitcode : int, level : int = logging.CRITICAL):
@@ -39,3 +44,16 @@ class FileFormatter(logging.Formatter):
         log_fmt += '%(message)s'
         formatter = logging.Formatter(log_fmt)
         return formatter.format(record)
+
+class PlatformManager():
+
+    PLATFORM_REQ_VARS = ['PLDUDE_PLATFORM_CLASS']
+
+    def __init__(self, plugin : ModuleType) -> ModuleType:
+        plugins = pkgutil.iter_modules(plugin.__path__, f"{plugin.__name__}.")
+        modules = [(importlib.import_module(name),f"{os.path.dirname(sys.modules[name].__file__)}/resources") for finder, name, ispkg in plugins]
+        self.platform_classes = []
+        for i in modules:
+            # Use all for future use cases
+            if all(j in dir(i[0]) for j in self.PLATFORM_REQ_VARS):
+                self.platform_classes.append(i)

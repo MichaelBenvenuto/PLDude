@@ -11,7 +11,7 @@ splash = """
 /_/   /_____/_____/\__,_/\__,_/\___/
 
 Programmable Logic Device Utility DEvtool
-v0.9.0
+v0.9.1
 """
 
 usage = """

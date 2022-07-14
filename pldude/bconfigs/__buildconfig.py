@@ -2,15 +2,18 @@ import os
 import sys
 import logging
 import yaml
+import json
 import glob
 import shutil
 import subprocess
 import difflib
 
-from typing import Any, IO, List
+import pldude.platforms
+
+from typing import Any, IO, List, Union
 
 from pldude.resources import ResourceManager
-from pldude.utils import PLDudeError, ConsoleFormatter, FileFormatter, RepFile
+from pldude.utils import PLDudeError, ConsoleFormatter, FileFormatter, RepFile, PlatformManager
 
 class BuildConfig(ResourceManager):
 
@@ -29,7 +32,16 @@ class BuildConfig(ResourceManager):
         self._remote = None
         self._platform_dir = None
 
+        if not os.path.exists('./gen/cache.json'):
+            self.__cache_data = {}
+        else:
+            cache_json = open('./gen/cache.json', "r")
+            self.__cache_data = json.load(cache_json) or {}
+            cache_json.close()
+
         self._endargs = {}
+
+        self._platman = PlatformManager(pldude.platforms)
 
         self._logging = logging.getLogger()
         ch = logging.StreamHandler()
@@ -110,23 +122,23 @@ class BuildConfig(ResourceManager):
             raise PLDudeError("Verbosity expected to be: (DEBUG | INFO | WARNING | ERROR | CRITICAL)", 2)
 
     def GetSpecific(self) -> 'BuildConfig':
-        from . import Xilinx7
-        from . import Altera
+        # Prevents an exception thrown via CheckPart() on back to back cleans...
+        if self._clean and not (self._compile or self._program):
+                self.__clean()
 
-        if shutil.which('quartus_sh') != None:
-            self.__class__ = Altera
-            if self.CheckPart(self.device.upper()):
-                return self
-
-        if shutil.which('vivado.bat') != None:
-            self.__class__ = Xilinx7
-            if self.CheckPart(self.device.lower()):
+        for i in self._platman.platform_classes:
+            self.__class__ = i[0].PLDUDE_PLATFORM_CLASS
+            self.resource_dir = i[1]
+            if self.CheckPart(str(self.device).lower()):
                 return self
 
         raise PLDudeError(f'Device \'{self.device.lower()}\' was not found in any tools...', 3)
 
     def GetDirectory(self, module : str) -> str:
-        directory =  "./gen/" + self.__class__.__name__ + "/" + module
+        if self.__class__ == BuildConfig:
+            directory = f"./gen/{module}"
+        else:
+            directory =  f"./gen/{self.__class__.__name__}/{module}"
         if not os.path.exists(directory):
             os.makedirs(directory)
         return directory
@@ -205,6 +217,15 @@ class BuildConfig(ResourceManager):
             self.PrintLogs(subproc.stdout, logger)
         return subproc
 
+    def __clean(self):
+        if not os.path.exists('./gen'):
+            raise PLDudeError('Nothing to clean', 0, logging.INFO)
+        try:
+            shutil.rmtree('./gen', ignore_errors=True)
+            raise PLDudeError("Cleaned...", 0, logging.INFO)
+        except OSError as err:
+            raise PLDudeError(err.strerror, 2)
+
     def run(self):
         if self.mode == "MIXED":
             glob_ext = "/**/*[.vhd,.vhdl,.v]"
@@ -260,17 +281,13 @@ class BuildConfig(ResourceManager):
             if self._clean and self._compile and not self._program:
                 self._logging.warning("Skipping clean: compile flag set without program flag")
             elif self._clean and not self._compile:
-                if not os.path.exists('./gen'):
-                    raise PLDudeError('Nothing to clean', 0, logging.INFO)
-                self._logging.info('Cleaning...')
-                try:
-                    shutil.rmtree('./gen', ignore_errors=True)
-                    sys.exit(0)
-                except OSError as err:
-                    raise PLDudeError(err.strerror, 2)
+                self.__clean()
 
         except PLDudeError as err:
+            self.__dumpcache()
             raise err
+
+        self.__dumpcache()
 
         timestamps_yml.update({
             os.path.abspath('./pinprj.yml') : int(os.path.getmtime('./pinprj.yml')),
@@ -287,12 +304,19 @@ class BuildConfig(ResourceManager):
             yaml.dump(timestamps_yml, timestamps)
             timestamps.close()
 
-    def _CheckPartCmd(self) -> List[str]:
-        return []
+    def _CheckPartCmd(self) -> Union[List[str], None]:
+        return None
 
     def CheckPart(self, part : str) -> bool:
-        part_listing = self._CheckPartCmd()
-        possible_part = difflib.get_close_matches(part, part_listing, n=1)
+        parts = self.GetCachePlatformData('PartVerify', None)
+        if parts == None:
+            parts = self._CheckPartCmd()
+            if parts == None:
+                return False
+            
+            self.CachePlatformData('PartVerify', parts)
+
+        possible_part = difflib.get_close_matches(part, parts, n=1)
         if len(possible_part) == 0:
             return False
 
@@ -301,6 +325,25 @@ class BuildConfig(ResourceManager):
 
         return True
 
+    def __dumpcache(self):
+        cache_json = open('./gen/cache.json', "w+")
+        json.dump(self.__cache_data, cache_json)
+        cache_json.close()
+
+    def CachePlatformData(self, key : str, data : Union[str,dict,list]):
+        cache_platform = self.__cache_data.get(self.__class__.__name__, {})
+        cache_platform.update({key: data})
+        self.CacheData(self.__class__.__name__, cache_platform)
+
+    def GetCachePlatformData(self, key : str, default):
+        return self.GetCacheData(self.__class__.__name__, {}).get(key, default)
+
+    def GetCacheData(self, key : str, default):
+        return self.__cache_data.get(key, default)
+
+    def CacheData(self, key : str, data : Union[str,dict,list]):
+        self.__cache_data.update({key: data})
+        
     def program(self):
         raise PLDudeError("Unknown device! Cannot program!", 3)
 
