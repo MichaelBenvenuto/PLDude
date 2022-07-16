@@ -88,7 +88,7 @@ class Xilinx7(BuildConfig):
         if len(devices) > 1:
             print('Select a target:')
             for i in range(0, len(devices)):
-                print('\t[' + str(i) + ']: ' + str(devices[i]))
+                print(f'\t[{str(i)}]: {str(devices[i])}')
 
             target = int(input('> '))
         elif len(devices) == 1:
@@ -100,7 +100,7 @@ class Xilinx7(BuildConfig):
         if len(devices[target].device) > 1:
             print('Select a device:')
             for i in range(0, len(devices[target].device)):
-                print('\t[' + str(i) + ']: ' + str(devices[target].device[i]))
+                print(f'\t[{str(i)}]: {str(devices[target].device[i])}')
 
             device = int(input('> '))
         elif len(devices[target].device) == 1:

@@ -14,6 +14,7 @@ from typing import Any, IO, List, Union
 
 from pldude.resources import ResourceManager
 from pldude.utils import PLDudeError, ConsoleFormatter, FileFormatter, RepFile, PlatformManager
+from pldude.utils.error import *
 
 class BuildConfig(ResourceManager):
 
@@ -68,7 +69,7 @@ class BuildConfig(ResourceManager):
             project_yaml = open("pldprj.yml", "r")
             pinproj_yaml = open("pinprj.yml", "r")
         except OSError as err:
-            raise PLDudeError("Could not open " + err.filename + ": " + err.strerror, 2)
+            raise PLDudeError(f"Could not open {err.filename}: {err.strerror}", ERR_PLDUDE_FERROR)
 
         project = yaml.load(project_yaml, Loader=yaml.SafeLoader) or {}
         self.pinconf = yaml.load(pinproj_yaml, Loader=yaml.SafeLoader) or {}
@@ -91,9 +92,9 @@ class BuildConfig(ResourceManager):
                 key_errors.append(key)
 
         if len(key_errors) != 0:
-            raise PLDudeError("Missing project parameters: " + ', '.join(key_errors), 1)
+            raise PLDudeError(f'Missing project parameters: {", ".join(key_errors)}', ERR_PLDUDE_PROJERR)
     def GetRemote(self) -> str:
-        raise PLDudeError('Unknown Device! Cannot get remote programming URL!', 2)
+        raise PLDudeError('Unknown Device! Cannot get remote programming URL!', ERR_PLDUDE_PLATERR)
 
     def SetCompile(self, val : bool):
         self._compile = val
@@ -122,7 +123,7 @@ class BuildConfig(ResourceManager):
             self._logging.setLevel(logging.CRITICAL)
         else:
             self._logging.setLevel(logging.CRITICAL)
-            raise PLDudeError("Verbosity expected to be: (DEBUG | INFO | WARNING | ERROR | CRITICAL)", 2)
+            raise PLDudeError("Verbosity expected to be: (DEBUG | INFO | WARNING | ERROR | CRITICAL)", ERR_PLDUDE_VERBOSE)
 
     def GetSpecific(self, hint : str = 'AUTO') -> 'BuildConfig':
         # Prevents an exception thrown via CheckPart() on back to back cleans...
@@ -138,13 +139,13 @@ class BuildConfig(ResourceManager):
 
         if hint == 'AUTO':
             self.__dumpcache()
-            raise PLDudeError(f'Device \'{self.device.lower()}\' was not found in any tools...', 3)
+            raise PLDudeError(f'Device \'{self.device.lower()}\' was not found in any tools...', ERR_PLDUDE_TOOLERR)
         else:
             self.__dumpcache()
             if not hint in self._platman.platforms:
-                raise PLDudeError(f'Tool \'{hint}\' invalid, acceptable values: {", ".join(self._platman.platforms)}', 3)
+                raise PLDudeError(f'Tool \'{hint}\' invalid, acceptable values: {", ".join(self._platman.platforms)}', ERR_PLDUDE_TDEVERR)
             else:
-                raise PLDudeError(f'Device \'{self.device.lower()}\' was not found in tool \'{hint}\'...', 3)
+                raise PLDudeError(f'Device \'{self.device.lower()}\' was not found in tool \'{hint}\'...', ERR_PLDUDE_TDEVERR)
 
     def GetDirectory(self, module : str) -> str:
         if self.__class__ == BuildConfig:
@@ -179,7 +180,7 @@ class BuildConfig(ResourceManager):
 
         if len(pin_errs) > 0:
             pin_errs_str = ', '.join(pin_errs)
-            raise PLDudeError(f'Must specify both \'pkg\' and \'iostd\' in pinprj.yml for {pin_errs_str}', 4)
+            raise PLDudeError(f'Must specify both \'pkg\' and \'iostd\' in pinprj.yml for {pin_errs_str}', ERR_PLDUDE_PINPERR)
 
         return pins_out
 
@@ -231,12 +232,12 @@ class BuildConfig(ResourceManager):
 
     def __clean(self):
         if not os.path.exists('./gen'):
-            raise PLDudeError('Nothing to clean', 0, logging.INFO)
+            raise PLDudeError('Nothing to clean', ERR_PLDUDE_SUCCESS, logging.INFO)
         try:
             shutil.rmtree('./gen', ignore_errors=True)
-            raise PLDudeError("Cleaned...", 0, logging.INFO)
+            raise PLDudeError("Cleaned...", ERR_PLDUDE_SUCCESS, logging.INFO)
         except OSError as err:
-            raise PLDudeError(err.strerror, 2)
+            raise PLDudeError(err.strerror, ERR_PLDUDE_SYSTERR)
 
     def run(self):
         if self.mode == "MIXED":
@@ -246,7 +247,7 @@ class BuildConfig(ResourceManager):
         elif self.mode == "VERILOG":
             glob_ext = "/**/*.v"
         else:
-            raise PLDudeError("Unknown file type: " + self.mode, 2)
+            raise PLDudeError(f"Unknown file type: {self.mode}", ERR_PLDUDE_MODFERR)
         glob_dir = self.src_dir + glob_ext
         files = glob.glob(glob_dir, recursive=True)
 
@@ -333,7 +334,7 @@ class BuildConfig(ResourceManager):
             return False
 
         if possible_part[0] != part:
-            raise PLDudeError(f'Part \'{part}\' could not be found (did you mean \'{possible_part[0]}\'?)', 2)
+            raise PLDudeError(f'Part \'{part}\' could not be found (did you mean \'{possible_part[0]}\'?)', ERR_PLDUDE_TDEVERR)
 
         return True
 
@@ -357,10 +358,10 @@ class BuildConfig(ResourceManager):
         self.__cache_data.update({key: data})
         
     def program(self):
-        raise PLDudeError("Unknown device! Cannot program!", 3)
+        raise PLDudeError("Unknown device! Cannot program!", ERR_PLDUDE_PLATERR)
 
     def compile(self):
-        raise PLDudeError("Unknown device! Cannot synthesize", 3)
+        raise PLDudeError("Unknown device! Cannot synthesize", ERR_PLDUDE_PLATERR)
 
     def simulate(self):
-        raise PLDudeError("Unknown device! Cannot simulate", 3)
+        raise PLDudeError("Unknown device! Cannot simulate", ERR_PLDUDE_PLATERR)

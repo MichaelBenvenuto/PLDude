@@ -10,6 +10,8 @@ from pldude.utils import Device, PLDudeError
 
 from typing import Union, IO
 
+from pldude.utils.error import ERR_PLDUDE_PLATERR, PLPlatError
+
 class AlteraDevice(Device):...
 
 class Altera(BuildConfig):
@@ -63,7 +65,7 @@ class Altera(BuildConfig):
         pins = ['quartus_sh', '-t', os.path.abspath(self.GetResourceDir('qsf.tcl')), self.device, self.top]
         altera_pconf = self.pinconf.get(self.__class__.__name__, None)
         if altera_pconf == None:
-            raise PLDudeError('Pin configuration does not exist for ' + self.__class__.__name__, 2)
+            raise PLPlatError(f'Pin configuration does not exist for {self.__class__.__name__}')
 
         pins.extend(self.GetTCLFiles())
         pins.extend(self.GetTCLPins('LVCMOS'))
