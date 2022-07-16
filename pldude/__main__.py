@@ -1,9 +1,15 @@
-from pldude.bconfigs import BuildConfig
-from pldude.utils import PLDudeError
+from email.policy import default
 import sys
 import getopt
 
-splash = """
+import argparse
+
+from pldude.bconfigs import BuildConfig
+from pldude.utils import PLDudeError
+
+version_str = "v0.9.1"
+
+splash = f"""
     ____  __    ____            __   
    / __ \/ /   / __ \__  ______/ /__ 
   / /_/ / /   / / / / / / / __  / _ \\
@@ -11,57 +17,37 @@ splash = """
 /_/   /_____/_____/\__,_/\__,_/\___/
 
 Programmable Logic Device Utility DEvtool
-v0.9.1
-"""
-
-usage = """
-Usage:
-    pldude [-c|--compile] [-p|--program] [-v|--verbosity <DEBUG|INFO|WARNING|ERROR|NONE>] [-s|--simulate <module>] [-h|--help] [-x|--clean]
-
-Options:
-    -c | --compile              Synthesize all hdl files
-    -p | --program              Upload synthesized hdl files to PLD, will synthesize if files are not already
-    -v | --verbosity            Set verbosity level (INFO|WARNING|ERROR|NONE)
-    -s | --simulate             Simulate the specified module
-    -h | --help                 Display this message
-    -x | --clean                Clean all tool-generated files
-
+{version_str}
 """
 
 def main():
     try:
-        print(splash)
 
-        if len(sys.argv[1:]) == 0:
-            print(usage)
-            sys.exit(0)
+        parser = argparse.ArgumentParser(prog='PLDude', description='Programmable Logic Device Utility DEvtool')
 
-        try:
-            arg, opt = getopt.getopt(sys.argv[1:], "cpv:s:hx", ['compile', 'program', 'verbosity=', 'simulate=', 'help', 'clean'])
-        except getopt.GetoptError as err:
-            print(err)
-            print(usage)
-            sys.exit(2)
+        parser.add_argument('-c', '--compile', action='store_true', help='synthesize specified design files')
+        parser.add_argument('-l', '--platform', default='AUTO', type=str, help='specify a platform hint')
+        parser.add_argument('-p', '--program', action='store_true', help='program a synthesized design')
+        parser.add_argument('-s', '--simulate', default=None, type=str, nargs=1, help='simulate a given module')
+        parser.add_argument('-v', '--verbosity', choices=['DEBUG','INFO','WARNING','ERROR','NONE'], default='INFO', help='set the output verbosity to a given level')
+        parser.add_argument('-x', '--clean', action='store_true', help='clean the generated project files')
+        parser.add_argument('--version', action='version', version=f'%(prog)s {version_str}')
+
+        res = parser.parse_args()
 
         bconf = BuildConfig()
-        for o, a in arg:
-            if o in ('-c', '--compile'):
-                bconf.SetCompile(True)
-            elif o in ('-p', '--program'):
-                bconf.SetProgram(True)
-            elif o in ('-v', '--verbosity'):
-                bconf.SetVerbosity(a)
-            elif o in ('-s', '--simulate'):
-                bconf.SetSimulate(True, a)
-            elif o in ('-x', '--clean'):
-                bconf.Clean(True)
-            elif o in ('-h', '--help'):
-                print(usage)
-                sys.exit(0)
 
+        bconf.SetCompile(res.compile)
+        bconf.Clean(res.clean)
+        bconf.SetProgram(res.program)
+        
+        if res.simulate != None:
+            bconf.SetSimulate(True, res.simulate)
+
+        bconf.SetVerbosity(res.verbosity)
         bconf.LoadConfig()
 
-        bconf.GetSpecific().run()
+        bconf.GetSpecific(res.platform).run()
     except KeyboardInterrupt:
         bconf._logging.warning("User termination")
         bconf.Terminate()

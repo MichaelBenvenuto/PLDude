@@ -1,1 +1,1 @@
-from .__buildconfig import *
+from .buildconfig import *

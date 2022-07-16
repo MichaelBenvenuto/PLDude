@@ -4,10 +4,13 @@ import importlib
 import pkgutil
 
 from types import ModuleType
+from typing import List
 
 class PlatformManager():
 
     PLATFORM_REQ_VARS = ['PLDUDE_PLATFORM_CLASS']
+
+    platforms : List = []
 
     def __init__(self, plugin : ModuleType) -> ModuleType:
         plugins = pkgutil.iter_modules(plugin.__path__, f"{plugin.__name__}.")
@@ -16,4 +19,5 @@ class PlatformManager():
         for i in modules:
             # Use all for future use cases
             if all(j in dir(i[0]) for j in self.PLATFORM_REQ_VARS):
+                self.platforms.append(i[0].__name__.split('.')[2])
                 self.platform_classes.append(i)

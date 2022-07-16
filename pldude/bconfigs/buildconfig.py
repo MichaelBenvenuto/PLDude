@@ -60,6 +60,9 @@ class BuildConfig(ResourceManager):
 
         self._logging.setLevel(logging.INFO)
 
+    def GetPlatforms(self):
+        return self._platman.platforms
+
     def LoadConfig(self):
         try:
             project_yaml = open("pldprj.yml", "r")
@@ -121,18 +124,27 @@ class BuildConfig(ResourceManager):
             self._logging.setLevel(logging.CRITICAL)
             raise PLDudeError("Verbosity expected to be: (DEBUG | INFO | WARNING | ERROR | CRITICAL)", 2)
 
-    def GetSpecific(self) -> 'BuildConfig':
+    def GetSpecific(self, hint : str = 'AUTO') -> 'BuildConfig':
         # Prevents an exception thrown via CheckPart() on back to back cleans...
         if self._clean and not (self._compile or self._program):
                 self.__clean()
 
         for i in self._platman.platform_classes:
-            self.__class__ = i[0].PLDUDE_PLATFORM_CLASS
-            self.resource_dir = i[1]
-            if self.CheckPart(str(self.device).lower()):
-                return self
+            if i[0].PLDUDE_PLATFORM_CLASS.__name__ == hint or hint == 'AUTO':
+                self.__class__ = i[0].PLDUDE_PLATFORM_CLASS
+                self.resource_dir = i[1]
+                if self.CheckPart(str(self.device).lower()):
+                    return self
 
-        raise PLDudeError(f'Device \'{self.device.lower()}\' was not found in any tools...', 3)
+        if hint == 'AUTO':
+            self.__dumpcache()
+            raise PLDudeError(f'Device \'{self.device.lower()}\' was not found in any tools...', 3)
+        else:
+            self.__dumpcache()
+            if not hint in self._platman.platforms:
+                raise PLDudeError(f'Tool \'{hint}\' invalid, acceptable values: {", ".join(self._platman.platforms)}', 3)
+            else:
+                raise PLDudeError(f'Device \'{self.device.lower()}\' was not found in tool \'{hint}\'...', 3)
 
     def GetDirectory(self, module : str) -> str:
         if self.__class__ == BuildConfig:
