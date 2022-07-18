@@ -11,5 +11,9 @@ class builder(tool):
         pass
 
     @abstractmethod
+    def implementer(self):
+        pass
+
+    @abstractmethod
     def bitstream(self):
-        pass 
+        pass

@@ -1,16 +1,17 @@
 import argparse
 import pldude.platforms
 
-from pldude.utils.platforms import get_platforms
+from pldude.utils.platforms import Platforms
 from pldude.utils.metadata import VERSION_STR
 
 def pldude_argcompile() -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog='pldude', description='Programmable Logic Device Utility DEvtool')
 
-    tools = get_platforms(pldude.platforms)
+    Platforms.load_platforms(pldude.platforms)
+    tools = Platforms
 
-    builder_classes = tools['builders'].copy()
-    simulator_classes = tools['simulators'].copy()
+    builder_classes = tools.builders.copy()
+    simulator_classes = tools.simulators.copy()
     tool_classes = builder_classes.copy()
     tool_classes.extend(simulator_classes)
 
@@ -28,7 +29,7 @@ def pldude_argcompile() -> argparse.Namespace:
     compile_enviro.add_argument('-e', '--environment', default='AUTO', choices=compile_choices, help='select and environment to compile with')
 
     simulator_parser = subcommand_subparser.add_parser('SIMULATE', description='simulates a design')
-    simulator_parser.add_argument('MODULE', help='module to simulate')
+    simulator_parser.add_argument('module', help='module to simulate')
     simulator_parser.add_argument('-t', '--type', default='BEHAVIORAL', choices=['BEHAVIORAL','SYNTH','PAR','IMPLEMENT'], help='select a simulation type')
     simulator_enviro = simulator_parser.add_argument_group(title='environment')
     simulator_choices = ['AUTO']
